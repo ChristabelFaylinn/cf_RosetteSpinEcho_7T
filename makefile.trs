@@ -1,0 +1,79 @@
+##----------------------------------------------------------------------------------
+## <copyright file="makefile.trs" company="Siemens Healthcare GmbH">
+##   Copyright (C) Siemens AG, 1998-2015. All Rights Reserved. Confidential.
+##   Copyright (C) Siemens Healthcare GmbH, 2015. All Rights Reserved. Confidential.
+## </copyright>
+##----------------------------------------------------------------------------------
+
+IF_WIN(DEBUGGER_CMD("$(OutDir)/SeqTestFrame.exe" "-s $(TargetPath)"))
+
+##-----------------------------------------------------------------------------
+## local compiler flags
+##
+CPPFLAGS(-D_CONSOLE)
+CPPFLAGS(-DBUILD_SEQU)
+CPPFLAGS(-DSEQUENCE_CLASS_CSI_FID)
+CPPFLAGS(-DSEQ_NAMESPACE=CSI_FID)
+
+## CF for VAPOR
+CPPFLAGS(-DBUILD_VAPOR_SBB)
+
+## CPPFLAGS(-DMR_ALL_WARNINGS)
+
+## CF WIP for VAPOR --------- 
+CPPFLAGS (-DWPT_NAMESPACE=cf_RosetteSpinEcho_7T_WPT)
+CPPFLAGS (-DBUILD_WIPParameterTool)
+
+VS_ADD_GROUP_ITEMS(Config, /Config/MriProduct/Exam/ParameterCards/SequenceSpecific, csi_fid_ParameterCardConfiguration.xml)
+
+##-----------------------------------------------------------------------------
+## include paths
+##
+
+##-----------------------------------------------------------------------------
+## source files
+##
+
+CPPSOURCESFROM(SBBWatSup_VAPOR, ../libSpecSBB/)
+
+CPPSOURCES(csi_fid)
+CPPSOURCES(csi_fid_UI)
+## CF Vapor
+CPPSOURCESFROM (WIPParameterTool,  ../../MrImagingFW/WIPParameterTool)
+
+
+##-----------------------------------------------------------------------------
+## local linker flags
+##
+
+##-----------------------------------------------------------------------------
+## link libraries
+##
+IF_WIN(LDLIBS(libUILink))
+LDLIBS(MeasNucleiBase)
+LDLIBS(MeasNucleiIF)
+LDLIBS(MrGenericDC)
+LDLIBS(MrProt)
+LDLIBS(MrTrace)
+LDLIBS(Reflection)
+LDLIBS(SpecSeq)
+LDLIBS(SpecUtils_EGA)
+LDLIBS(UTrace)
+LDLIBS(libSBBFW)
+LDLIBS(libSeqSysProp)
+LDLIBS(libSeqUTIF)
+LDLIBS(libSeqUtil)
+LDLIBS(libSpecSBB)
+
+## CF for VAPOR sequence special card
+LDLIBS (libUICtrl)
+## LDLIBS (libUILink)
+LDLIBS (UTrace)
+
+LIB(cf_RosetteSpinEcho_7T)
+
+##-----------------------------------------------------------------------------
+## target name
+##
+SIEMENSSEQLIB(cf_RosetteSpinEcho_7T)
+IF_WIN(VS_STARTUP_PROJECT(csi_fid))
