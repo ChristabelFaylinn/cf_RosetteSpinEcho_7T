@@ -1581,6 +1581,7 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
     
      delay_3 = ceil((2 * M_PI) / (n_ti * w * 2) * 1000000);
      std::cout << "The value of delay_3 is: " << delay_3 << std::endl;
+     std::cout << "The value of dummy_delay_3 is: " << dummy_delay_3 << std::endl;
 
      if (delay_3 < 0)
      {
@@ -1654,6 +1655,20 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
     std::cout << "delay_1" << delay_1 << std::endl;
     std::cout << "delay_2" << delay_2 << std::endl;
 
+    // other set of delays compensating for interleave 
+
+    TE_int = (rMrProt.te()[0]) + dummy_delay_3;
+    const long lTime4 = 0.5 * TE_int;
+    const long lTime5 = lTime4 - lTime1;
+
+    delay_4 = lTime4 - (m_rf_ref.getDuration() / 2) - m_sp1_sl.getDuration() - m_sp1_sl.getDuration() - 2 * m_gradRampDuration_sl - (m_rf_ref.getDuration() / 2);
+    delay_5 = lTime5 - (m_rf_ref.getDuration() / 2) - m_sp2_sl.getDuration() - m_gradRampDuration_sl - m_RosGx_rampup.getDuration() - dummy_delay_3;
+
+    std::cout << "delay_4" << delay_4 << std::endl;
+    std::cout << "delay_5" << delay_5 << std::endl;
+
+
+
     if (delay_1 < 0)
     {
         if (!(rSeqLim.isContextPrepForBinarySearch()))
@@ -1664,6 +1679,24 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
     }
 
     if (delay_2 < 0)
+    {
+        if (!(rSeqLim.isContextPrepForBinarySearch()))
+        {
+            std::cout << "TE value not possible. Aborting!!" << std::endl;
+        }
+        return MRI_SEQ_SEQU_ERROR;
+    }
+
+    if (delay_4 < 0)
+    {
+        if (!(rSeqLim.isContextPrepForBinarySearch()))
+        {
+            std::cout << "TE value not possible. Aborting!!" << std::endl;
+        }
+        return MRI_SEQ_SEQU_ERROR;
+    }
+
+    if (delay_5 < 0)
     {
         if (!(rSeqLim.isContextPrepForBinarySearch()))
         {
@@ -2337,7 +2370,18 @@ NLS_STATUS Csi_fid::runKernel(
     fRTEI(lT += m_rf_ref.getDuration(), &m_ph_n_ref, 0, /*A*/ 0, &m_sp1_ph, &m_sp1_ro, &m_sp1_sl, 0);
 
     // 2nd GOIA refocussing pulse
-    fRTEI(lT += m_sp1_sl.getTotalTime() + delay_1, 0, 0, /*A*/ 0, &m_sp1_ph, &m_sp1_ro, &m_sp1_sl, 0);
+    if (m_ISISalternator == 0)
+    {
+        m_1TrueTE1 = delay_4;
+        m_lTrueTE2 = delay_5;
+    }
+    else
+    {
+        m_1TrueTE1 = delay_1;
+        m_lTrueTE2 = delay_2;
+    }
+    
+    fRTEI(lT += m_sp1_sl.getTotalTime() + m_1TrueTE1, 0, 0, /*A*/ 0, &m_sp1_ph, &m_sp1_ro, &m_sp1_sl, 0);
     fRTEI(lT += m_sp1_sl.getDuration(), 0, 0, /*A*/ 0, 0, 0, &m_grad_ref, 0);
     m_ph_s_ref.setFrequencyProportionalToGradient(SEQ::AXIS_SLICE, m_dFreqPropFactor_sl); /*! EGA-05 !*/
     m_ph_n_ref.setFrequencyProportionalToGradient(SEQ::AXIS_SLICE, 0.0);                  /*! EGA-05 !*/
@@ -2349,7 +2393,9 @@ NLS_STATUS Csi_fid::runKernel(
     fRTEI(lT+= m_rf_ref.getDuration(), &m_ph_n_ref,0,/*A*/0,&m_sp2_ph,&m_sp2_ro,&m_sp2_sl,0);
 	//fRTEI(lT+= m_grad_ref.getRampDownTime(), 0,0,/*A*/0,&m_sp2_ph, &m_sp2_ro,&m_sp2_sl,0);
 	//lT+=m_sp2_sl.getDuration() + m_sp2_sl.getRampDownTime() + delay_2;
-	lT+=m_sp2_sl.getTotalTime() + delay_2;
+
+
+    lT += m_sp2_sl.getTotalTime() + m_lTrueTE2;
 
     // DC
     if (rMrProt.getsSpecPara().getlDecouplingType() == SEQ::DECOUPLING_CW)
@@ -2392,7 +2438,8 @@ NLS_STATUS Csi_fid::runKernel(
 
     if (m_ISISalternator == 0)
     {
-        SEQ_TRACE_WARN.print("dalay_3: %ld", delay_3);
+        SEQ_TRACE_WARN.print("delay_3: %ld", delay_3);
+        SEQ_TRACE_WARN.print("dummy_delay_3: %ld", dummy_delay_3);
         SEQ_TRACE_WARN.print("HOHOHO");
         fRTEI(lT += dummy_delay_3, 0, 0, 0, &m_RosGy_rampup, &m_RosGx_rampup, 0, 0);
         cout << "Alternated!" << endl;

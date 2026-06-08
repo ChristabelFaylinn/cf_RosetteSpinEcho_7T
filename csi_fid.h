@@ -272,6 +272,11 @@ class __IMP_EXP Csi_fid : public SpecSeq
     long   m_dFreqPropFactor_sl{0};
     long   m_CSDfreq {0};
     long   m_gradRampDuration_sl{0};
+    long   TE_int{0};
+    long   delay_4{0};
+    long   delay_5{0};
+    long   m_1TrueTE1{0};
+    long   m_lTrueTE2{0};
 
 
     double m_asymAmp{0.0};  // amplitude defined for implementing asymmmetric RF pulse
