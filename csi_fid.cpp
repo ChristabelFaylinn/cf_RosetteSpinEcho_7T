@@ -383,6 +383,10 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
     // long encodTotaldur; //ss
     double sp1ampl, sp2ampl, dmin, dmax;
 
+    // added for GOIA-WURST CF 
+
+    double sp1ampl_sl, sp2ampl_sl;
+
     if (rMrProt.preScanNormalizeFilter().getucOn())
         rMrProt.preScanNormalizeFilter().setucStoreCXIma(true); // exception, change a protocol during prepare() !!!
 
@@ -536,6 +540,9 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
     const double dVoxelShiftP  = 0.5;
     const double dVoxelShiftS  = 0.5;
 
+    strcpy(GOIA_sl, "GOIA_MLL");
+
+
     // Prepare Osc. Bit
     m_osc1.setCode(SYNCCODE_OSC0);
     m_osc1.setIdent(RTEIDENT_Osc0);
@@ -559,19 +566,22 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
 
     rfInfoMainNucPerScan += m_rf_exc.getRFInfo();
 
-    m_rf_ref.setTypeRefocussing();
-    m_rf_ref.setDuration(l_RefDuration);
-    m_rf_ref.setFlipAngle(180);
-    m_rf_ref.setInitialPhase(0);
-    m_rf_ref.setFamilyName("mao_400_4");
-    m_rf_ref.setNucleus(mainNucleus);
-    m_rf_ref.setThickness(rMrProt.getsSpecPara().getsVoI().getdThickness());
 
-    if (!(m_rf_ref.prepExternal(rMrProt, rSeqExpo)))
-        return m_rf_ref.getNLSStatus();
+    //m_rf_ref.setTypeRefocussing();
+    //m_rf_ref.setDuration(l_RefDuration);
+    //m_rf_ref.setFlipAngle(180);
+    //m_rf_ref.setInitialPhase(0);
+    //m_rf_ref.setFamilyName("mao_400_4");
+    //m_rf_ref.setNucleus(mainNucleus);
+    //m_rf_ref.setThickness(rMrProt.getsSpecPara().getsVoI().getdThickness());
 
-    rfInfoMainNucPerScan += m_rf_ref.getRFInfo();
+    //if (!(m_rf_ref.prepExternal(rMrProt, rSeqExpo)))
+    //    return m_rf_ref.getNLSStatus();
+
+    //rfInfoMainNucPerScan += m_rf_ref.getRFInfo();
     // computation of the frequency offset which defines the voxel position
+
+
     double dFrequency_Hz        = 0.0;
     double dFrequencyWithCSD_Hz = 0.0;
 
@@ -588,16 +598,38 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
     double dFrequency_ref_Hz        = 0.0;
     double dFrequencyWithCSD_ref_Hz = 0.0;
 
-    std::tie(dFrequency_ref_Hz, dFrequencyWithCSD_ref_Hz) = SpecUtils::calcFrequency(
-        m_rf_ref.getGSAmplitude(),
-        dLarmorConst,
-        m_fov.getSliceShift(),
-        rMrProt.getsTXSPEC().getasNucleusInfo()[0].getlFrequency(),
-        rMrProt.getsSpecPara().getdDeltaFrequency());
+    //std::tie(dFrequency_ref_Hz, dFrequencyWithCSD_ref_Hz) = SpecUtils::calcFrequency(
+    //    m_rf_ref.getGSAmplitude(),
+    //    dLarmorConst,
+    //    m_fov.getSliceShift(),
+    //    rMrProt.getsTXSPEC().getasNucleusInfo()[0].getlFrequency(),
+    //    rMrProt.getsSpecPara().getdDeltaFrequency());
 
+    //SpecUtils::setExcFreqAndPhase(
+    //    m_ph_s_ref, m_ph_n_ref, dFrequencyWithCSD_ref_Hz, m_rf_ref.getDuration(), m_rf_ref.getAsymmetry());
+    
+    // Adiabatic refocuing GOIA-WURST slice direction CF
+
+    long defaultDuration = 4500;
+    m_rf_ref.setTypeRefocussing();
+    m_rf_ref.setFlipAngle(180);
+    m_rf_ref.setInitialPhase(0);
+    m_rf_ref.setFamilyName(GOIA_sl);
+    m_rf_ref.setThickness(rMrProt.getsSpecPara().getsVoI().getdThickness()); // should i change this CF 
+    m_rf_ref.setDuration(defaultDuration);
+    m_rf_ref.setSamples(450);
+
+    if (!(m_rf_ref.prepExternal(rMrProt, rSeqExpo)))
+            return m_rf_ref.getNLSStatus();
+
+    m_CSDfreq = (long)(rMrProt.getsTXSPEC().getasNucleusInfo()[0].getlFrequency() /* in Hz */ * 1E-6 * rMrProt.getsSpecPara().getdDeltaFrequency()) /* in ppm */;  /*! EGA-05 !*/
+    std::cout << "m_CSDfrq = " << m_CSDfreq << std::endl;
     SpecUtils::setExcFreqAndPhase(
-        m_ph_s_ref, m_ph_n_ref, dFrequencyWithCSD_ref_Hz, m_rf_ref.getDuration(), m_rf_ref.getAsymmetry());
-
+        m_ph_s_ref, m_ph_n_ref, m_CSDfreq, m_rf_ref.getDuration(), m_rf_ref.getAsymmetry(), true);
+    m_dFreqPropFactor_sl = (float)(dLarmorConst * m_voi.getSliceOffCenterRO() * 429.4967296); // CF should i change any variables here?
+    m_ph_s_ref.setFrequencyProportionalToGradient(SEQ::AXIS_SLICE, m_dFreqPropFactor_sl);   /*! EGA-05 !*/
+    m_ph_n_ref.setFrequencyProportionalToGradient(SEQ::AXIS_SLICE, 0.0);                      /*! EGA-05 !*/
+    m_ph_n_ref.resetFrequencyProportionalToGradient();                                        /*! EGA-05 !*/       
 
     // prepare the NOE pulse(s)
     long noe_dur = 0;
@@ -1145,21 +1177,149 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
         || !m_grad_exc.check())
         return m_grad_exc.getNLSStatus();
 
-    // the refocussing gradient
-    // is balanced with the spoiler after the 1st refocussing pulse
+    // Convert this to gradient modulated adiabatic ref CF
+    //// the refocussing gradient
+    //// is balanced with the spoiler after the 1st refocussing pulse
 
-    // gradient during refocusing pulse
+    //// gradient during refocusing pulse
 
-    if(  (dGradAmpl = m_rf_ref.getGSAmplitude()) > dGradMaxAmpl )
-        {
-            SEQ_TRACE_WARN.print("slice select. gradient of %f mT/m cannot be realized;", dGradAmpl);
-            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
-        }
+    //if(  (dGradAmpl = m_rf_ref.getGSAmplitude()) > dGradMaxAmpl )
+    //    {
+    //        SEQ_TRACE_WARN.print("slice select. gradient of %f mT/m cannot be realized;", dGradAmpl);
+    //        return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+    //    }
+    //
+
+    //if (!SpecUtils::prepGradient(m_grad_ref, dGradAmpl, l_RefDuration , lRampTime_us)
+    //    || !m_grad_ref.check())
+    //    return m_grad_ref.getNLSStatus();
+
+    // -------------------------------------------------------------------
+    // data reading gradient pulse
+    // -------------------------------------------------------------------
+    //readShapesInit();
+    int  i;
+    char     msg[256];
+    //#define  BUFF_LEN   8192
+    //#define  GRAD_RASTER_TIME	     10     // 10us
+    #define  GRAD_RAMP_LEN  		20     // Number of ramp points CF CHANGE THIS TO 20??? 
+    #define  GRAD_LEN  		        450     // Number of points
+    long     gradLen=450;
+    float    gradTmpBuff[GRAD_LEN];
+	float    gradArrayBuff[GRAD_RAMP_LEN+GRAD_LEN+GRAD_RAMP_LEN];  
+    long     gradDuration;
+    //long     gradRampDuration;
+    //float    gradAmp;
+   
+    // if (readGrad("function/HS16R45s_grd_unscaled.txt",gradArrayBuff,gradLen,gradDuration,msg)==0) //default: Gpulse_JR.txt
+    // {
+    //     std::cout << "********************************************************" << std::endl;
+    //     std::cout << "* Grad O.K."                            			        << std::endl;
+    //     std::cout << "* gradLen:      " <<  gradLen                            << std::endl;
+    //     std::cout << "* gradDuration: " <<  gradDuration                          << std::endl;
+    //     std::cout << "********************************************************" << std::endl;
+    // }
+    // else
+    // {
+    //     std::cout << "********************************************************" << std::endl;
+    //     std::cout << "ERROR in readGrad != 0" <<msg                                        		    << std::endl;
+    //     std::cout << "********************************************************" << std::endl;
+    // }
+    char     dirPath[256];
+    dirPath[0]='\0';
+
+    if (getenv("CustomerSeq") != NULL) { 
+    strcat(dirPath,getenv("CustomerSeq"));
+    if ( (dirPath[strlen(dirPath)] != '\\')  || (dirPath[strlen(dirPath)] != '/') )
+        strcat(dirPath,"/"); //prev: /
+    std::cout << "inside getenv(CustomerSeq)  block" << std::endl;///PSW
+    }
+    strcat(dirPath,"GradMod_EK/");
     
+    std::cout << "############# " << std::endl;///PSW
+    std::cout << "Path of GradMod_EK: " << dirPath << std::endl;
+    std::cout << "############# " << std::endl;///PSW
 
-    if (!SpecUtils::prepGradient(m_grad_ref, dGradAmpl, l_RefDuration , lRampTime_us)
-        || !m_grad_ref.check())
-        return m_grad_ref.getNLSStatus();
+    char     path[256];
+    strcpy(path,dirPath);
+    strcat(path,"HS16R45s_grd_unscaled.txt");
+    
+    //const char *path="%CustomerSeq%/GradMod_EK/HS16R45s_grd_unscaled.txt";
+
+    FILE *fp;
+    float gx;
+
+
+    if ((fp=fopen(path,"r")) == NULL) {
+        sprintf(msg,"Error: Can not open %s", path);
+    }
+   
+    for (i=0;  i<gradLen;  ++i) {
+            if (fscanf (fp, "%f", &gx)!=1) {
+                sprintf(msg,"Error: Can not read data");
+                fclose (fp);
+        }
+
+        if (gx < -1) gx=-1;
+    
+        if (gx >  1) gx=1;
+
+        gradTmpBuff[i]=gx;
+        
+        // if (i<30) {
+        //     std::cout << "i=" << i << "\tgx=" <<  gx  <<  std::endl;
+        // } 
+    }
+    fclose (fp);
+
+    // Add ramp
+    float ax=gradTmpBuff[0]/GRAD_RAMP_LEN;
+    
+    std::cout << "ax: " << ax << std::endl;
+    
+    int k=0;
+    for (i=0; i<GRAD_RAMP_LEN; ++i)
+    {
+        gradArrayBuff[k]=ax*i;
+        ++k;
+    }
+    for (i=0; i<gradLen; ++i)
+    {
+        gradArrayBuff[k]=gradTmpBuff[i];
+        ++k;
+    }
+    for (i=GRAD_RAMP_LEN-1; i>=0; --i)
+    {
+        gradArrayBuff[k]=ax*i;
+        ++k;
+    }
+    gradLen          = GRAD_RAMP_LEN+GRAD_LEN+GRAD_RAMP_LEN;
+    gradDuration     = gradLen*GRAD_RASTER_TIME;
+    m_gradRampDuration_sl = GRAD_RAMP_LEN*GRAD_RASTER_TIME;
+    //m_gradRampDuration_ph = GRAD_RAMP_LEN*GRAD_RASTER_TIME;
+
+    gradDuration = gradLen*GRAD_RASTER_TIME;
+
+    std::cout << "gradRampDuration = " << m_gradRampDuration_sl << std::endl;
+    std::cout << "gradDuration = " << gradDuration << std::endl;
+    std::cout << "k = " << k << std::endl;
+    std::cout << "gradLen = " << gradLen << std::endl;
+    std::cout << "gradArrayBuff size = " << sizeof(gradArrayBuff) / sizeof(gradArrayBuff[0]) << std::endl;
+
+    m_grad_ref.setRampShape(gradArrayBuff, gradLen, 0, true);
+    m_grad_ref.setAmplitude(m_rf_ref.getGSAmplitude());
+    
+    m_grad_ref.setDuration(gradDuration);
+    if (!m_grad_ref.prep())
+    {
+        std::cout << "********************************************************" << std::endl;
+        std::cout << "* !m_grad_ref Prepare failed!!" << std::endl;
+        std::cout << "********************************************************" << std::endl;
+
+        return (m_grad_ref.getNLSStatus());
+    }
+
+    // -- END OF GOIA gradient modulated ref CF
 
     // compute phase encoding gradients
     // 1st phase encoding direction is READOUT
@@ -1382,35 +1542,35 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
 
 	 //delay_1 = rMrProt.te()[0]/2 - m_rf_exc.getDuration()/2 -m_grad_exc.getRampDownTime() - m_encod_sl.getTotalTime() - m_grad_ref.getRampUpTime() - m_rf_ref.getDuration()/2;
 	//  delay_1 = rMrProt.te()[0]/2 - m_rf_exc.getDuration()/2 -m_grad_exc.getRampDownTime() - m_sp1_sl.getTotalTime() - (m_grad_ref.getDuration() - m_rf_ref.getDuration() ) - m_rf_ref.getDuration()/2;
-	 delay_1 = rMrProt.te()[0]/2 - (m_rf_exc.getDuration()/2) - m_sp1_sl.getDuration() - m_grad_ref.getRampUpTime() - (m_rf_ref.getDuration()/2);
+	 // delay_1 = rMrProt.te()[0]/2 - (m_rf_exc.getDuration()/2) - m_sp1_sl.getDuration() - m_gradRampDuration_sl - (m_rf_ref.getDuration()/2); // CF changed RampDur for GOIA
 	 std::cout<<"The value of TE is inputted as: "<<rMrProt.te()[0]<<std::endl;
 	 std::cout<<"The value of m_rf_exc.getDuration()/2 is inputted as: "<<m_rf_exc.getDuration()/2<<std::endl;
 	 std::cout<<"The value of m_grad_exc.getRampDownTime() is inputted as: "<<m_grad_exc.getRampDownTime()<<std::endl;
 	 std::cout<<"The value of m_encod_sl.getTotalTime() is inputted as: "<<m_encod_sl.getTotalTime()<<std::endl;
 	 std::cout<<"The value of m_grad_ref.getRampUpTime() is inputted as: "<<m_grad_ref.getRampUpTime()<<std::endl;
 	 std::cout<<"The value of m_rf_ref.getDuration() is inputted as: "<<m_rf_ref.getDuration()/2<<std::endl;
-	 std::cout<<"The value of delay_1 is: "<<delay_1<<std::endl;
+	 // std::cout<<"The value of delay_1 is: "<<delay_1<<std::endl;
 
-	 if ( delay_1<0 )
+	 /*if ( delay_1<0 )
 	 { 
 		  if( !(rSeqLim.isContextPrepForBinarySearch()) )
           {
 		    std::cout << "TE value not possible. Aborting!!" << std::endl;
 		}
            return MRI_SEQ_SEQU_ERROR;
-	 }
+	 }*/
 
 	 //delay_2 = rMrProt.te()[0]/2 - m_rf_ref.getDuration()/2 - m_grad_ref.getRampDownTime() - m_sp2_sl.getTotalTime() - m_RosGx_rampup.getDuration();
-	 delay_2 = rMrProt.te()[0]/2 - (m_rf_ref.getDuration()/2) - m_sp2_sl.getDuration() - m_RosGx_rampup.getDuration();
-	 std::cout<<"The value of delay_2 is: "<<delay_2<<std::endl;
-	 if ( delay_2<0 )
+	 // delay_2 = rMrProt.te()[0]/2 - (m_rf_ref.getDuration()/2) - m_sp2_sl.getDuration() - m_RosGx_rampup.getDuration();
+	//  std::cout<<"The value of delay_2 is: "<<delay_2<<std::endl;
+	 /*if ( delay_2<0 )
 	 { 
 		  if( !(rSeqLim.isContextPrepForBinarySearch()) )
           {
 		    std::cout << "TE value not possible. Aborting!!" << std::endl;
 		}
            return MRI_SEQ_SEQU_ERROR;
-	 }
+	 }*/
 
 	 //cout<<"Hence I calculate TE = "<< m_rf_exc.getDuration()/2 + m_grad_exc.getRampDownTime() + m_encod_sl.getDuration() + m_enco<<endl;
 	 /////////////////////////////////////////////////////////////////////////
@@ -1462,6 +1622,55 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
         return m_finsp_sl.getNLSStatus();
 
     const long lFinalSpoilDuration = tau + lRampTime_us;
+
+    // compute some sequence parameters
+    /* details about the timing
+      exc -  t1  - refoc -  t1  -  t2  - refoc -  t2  - echo (pulse durations included in t1,t2 times)
+
+      Using the timing variables lTime1 to lTime3 the timing is:
+      exc -lTime1- refoc -   lTime2    - refoc -    lTime3  - echo (pulse durations included in lTime times)
+
+      t1 = lTime1
+
+      The echo time TE is then: 2 * t1 + 2 * t2.
+
+      the first GOIA will be played right after the exc. 
+      the time between the GOIA pulses will be TE/2 (peak to peak)
+      m_lTrueTE1 is the fill delay applied between the 2nd GOIA ref pulse and echo 
+      lTime2 os used to fill in the deadtime between the GOIA pulses
+    */
+
+    const long lTime1
+        = (long)(0.5 * (m_rf_exc.getDuration()) + 0.5 * (m_rf_ref.getDuration()) + m_sp1_sl.getDuration() + m_gradRampDuration_sl);
+    const long lTime2 = 0.5 * (rMrProt.te()[0]);
+    const long lTime3 = lTime2 - lTime1;
+
+    delay_1 = lTime2 - (m_rf_ref.getDuration()/2) - m_sp1_sl.getDuration() - m_sp1_sl.getDuration() - 2*m_gradRampDuration_sl - (m_rf_ref.getDuration()/2);
+    delay_2 = lTime3 - (m_rf_ref.getDuration()/2) - m_sp2_sl.getDuration() - m_gradRampDuration_sl - m_RosGx_rampup.getDuration();
+
+    std::cout << "lTime1" << lTime1 << std::endl;
+    std::cout << "lTime2" << lTime2 << std::endl;
+    std::cout << "lTime3" << lTime3 << std::endl;
+    std::cout << "delay_1" << delay_1 << std::endl;
+    std::cout << "delay_2" << delay_2 << std::endl;
+
+    if (delay_1 < 0)
+    {
+        if (!(rSeqLim.isContextPrepForBinarySearch()))
+        {
+            std::cout << "TE value not possible. Aborting!!" << std::endl;
+        }
+        return MRI_SEQ_SEQU_ERROR;
+    }
+
+    if (delay_2 < 0)
+    {
+        if (!(rSeqLim.isContextPrepForBinarySearch()))
+        {
+            std::cout << "TE value not possible. Aborting!!" << std::endl;
+        }
+        return MRI_SEQ_SEQU_ERROR;
+    }
 
     // Prepare Sequence Building block (SBBWatSat)
 
@@ -2114,19 +2323,33 @@ NLS_STATUS Csi_fid::runKernel(
     // first spoiler with phase encoding balanced
     fRTEI(lT += m_rf_exc.getDuration(), &m_ph_n_exc, 0, /*A*/ 0, 0, 0, 0, 0);
    	//lT+=m_grad_exc.getRampDownTime() + delay_1;
-    fRTEI(lT+=delay_1, 0,0,/*A*/0,&m_sp1_ph,&m_sp1_ro,&m_sp1_sl,0);
+    fRTEI(lT, 0,0,/*A*/0,&m_sp1_ph,&m_sp1_ro,&m_sp1_sl,0);
     //lT+=m_sp1_sl.getDuration() + m_sp1_sl.getRampDownTime();
 
 	// refocusing
-    fRTEI(lT+=m_sp1_sl.getDuration(), 0,0,/*A*/ 0,0,0,&m_grad_ref,0);
-    fRTEI(lT+=m_grad_ref.getRampUpTime(), &m_ph_s_ref, &m_rf_ref,0,/*A*/0,0,0,0);
+    // converted to GOIA refocusing CF
+    // slice select refocusing, 1st refocusing pulse of the GOIA pair
+    fRTEI(lT += m_sp1_sl.getDuration(), 0, 0, /*A*/ 0, 0, 0, &m_grad_ref, 0);
+    m_ph_s_ref.setFrequencyProportionalToGradient(SEQ::AXIS_SLICE, m_dFreqPropFactor_sl); /*! EGA-05 !*/
+    m_ph_n_ref.setFrequencyProportionalToGradient(SEQ::AXIS_SLICE, 0.0);                  /*! EGA-05 !*/
+    m_ph_n_ref.resetFrequencyProportionalToGradient();                                    /*! EGA-05 !*/ 
+    fRTEI(lT += m_gradRampDuration_sl, &m_ph_s_ref, &m_rf_ref, 0, /*A*/ 0, 0, 0, 0);
+    fRTEI(lT += m_rf_ref.getDuration(), &m_ph_n_ref, 0, /*A*/ 0, &m_sp1_ph, &m_sp1_ro, &m_sp1_sl, 0);
+
+    // 2nd GOIA refocussing pulse
+    fRTEI(lT += m_sp1_sl.getTotalTime() + delay_1, 0, 0, /*A*/ 0, &m_sp1_ph, &m_sp1_ro, &m_sp1_sl, 0);
+    fRTEI(lT += m_sp1_sl.getDuration(), 0, 0, /*A*/ 0, 0, 0, &m_grad_ref, 0);
+    m_ph_s_ref.setFrequencyProportionalToGradient(SEQ::AXIS_SLICE, m_dFreqPropFactor_sl); /*! EGA-05 !*/
+    m_ph_n_ref.setFrequencyProportionalToGradient(SEQ::AXIS_SLICE, 0.0);                  /*! EGA-05 !*/
+    m_ph_n_ref.resetFrequencyProportionalToGradient();                                    /*! EGA-05 !*/
+    fRTEI(lT += m_gradRampDuration_sl, &m_ph_s_ref, &m_rf_ref, 0, /*A*/ 0, 0, 0, 0);
 
     // second spoiler with rosette prephasing encoding balanced
 
     fRTEI(lT+= m_rf_ref.getDuration(), &m_ph_n_ref,0,/*A*/0,&m_sp2_ph,&m_sp2_ro,&m_sp2_sl,0);
 	//fRTEI(lT+= m_grad_ref.getRampDownTime(), 0,0,/*A*/0,&m_sp2_ph, &m_sp2_ro,&m_sp2_sl,0);
 	//lT+=m_sp2_sl.getDuration() + m_sp2_sl.getRampDownTime() + delay_2;
-	lT+=m_sp2_sl.getDuration() + delay_2;
+	lT+=m_sp2_sl.getTotalTime() + delay_2;
 
     // DC
     if (rMrProt.getsSpecPara().getlDecouplingType() == SEQ::DECOUPLING_CW)

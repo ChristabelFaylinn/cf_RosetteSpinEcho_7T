@@ -134,6 +134,7 @@ class __IMP_EXP Csi_fid : public SpecSeq
 
   protected:
     static const int32_t kWaltzMaxNoSamples{4096};
+    char                 GOIA_sl[32];
 
     // Slice position information (rotation matrix and voxel position)
     sSLICE_POS m_fov;
@@ -209,7 +210,7 @@ class __IMP_EXP Csi_fid : public SpecSeq
     // Gradient Pulses
     // slice selection pulses
     sGRAD_PULSE m_grad_exc{"grad_exc"}; // gradient during excitation
-    sGRAD_PULSE m_grad_ref{"grad_ref"};
+    sGRAD_PULSE_ARB m_grad_ref{"grad_ref"};
     
     // phase encoding pulses
     sGRAD_PULSE m_encod_sl{"encod_sl"};
@@ -268,6 +269,10 @@ class __IMP_EXP Csi_fid : public SpecSeq
     double m_d_read_pos{0.0};
     double m_d_phase_pos{0.0};
     double m_d_slice_pos{0.0};
+    long   m_dFreqPropFactor_sl{0};
+    long   m_CSDfreq {0};
+    long   m_gradRampDuration_sl{0};
+
 
     double m_asymAmp{0.0};  // amplitude defined for implementing asymmmetric RF pulse
 
