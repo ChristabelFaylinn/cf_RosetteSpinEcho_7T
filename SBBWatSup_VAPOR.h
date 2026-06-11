@@ -155,26 +155,27 @@ class /*__IMP_EXP*/ SeqBuildBlockWatSupVAPOR_CF : public SeqBuildBlockWatSup
 
         // CF FAST
 
-        sRF_PULSE_GAUSS m_rf_fast1{"ss_rf_fast1"};
-        sRF_PULSE_GAUSS m_rf_fast2{"ss_rf_fast2"};
-        sRF_PULSE_GAUSS m_rf_fast3{"ss_rf_fast3"};
-        sRF_PULSE_GAUSS m_rf_fast4{"ss_rf_fast4"};
-        sRF_PULSE_GAUSS m_rf_fast5{"ss_rf_fast5"};
+        sRF_PULSE_GAUSS m_rf_5pG1{"ss_rf_5pG1"};
+        sRF_PULSE_GAUSS m_rf_5pG2{"ss_rf_5pG2"};
+        sRF_PULSE_GAUSS m_rf_5pG3{"ss_rf_5pG3"};
+        sRF_PULSE_GAUSS m_rf_5pG4{"ss_rf_5pG4"};
+        sRF_PULSE_GAUSS m_rf_5pG5{"ss_rf_5pG5"};
 
-        sFREQ_PHASE m_ph_s_fast1{"ss_ph_s_fast1"};
-        sFREQ_PHASE m_ph_n_fast1{"ss_ph_n_fast1"};
-        sFREQ_PHASE m_ph_s_fast2{"ss_ph_s_fast2"};
-        sFREQ_PHASE m_ph_n_fast2{"ss_ph_n_fast2"};
-        sFREQ_PHASE m_ph_s_fast3{"ss_ph_s_fast3"};
-        sFREQ_PHASE m_ph_n_fast3{"ss_ph_n_fast3"};
-        sFREQ_PHASE m_ph_s_fast4{"ss_ph_s_fast4"};
-        sFREQ_PHASE m_ph_n_fast4{"ss_ph_n_fast4"};
-        sFREQ_PHASE m_ph_s_fast5{"ss_ph_s_fast5"};
-        sFREQ_PHASE m_ph_n_fast5{"ss_ph_n_fast5"};
+        sFREQ_PHASE m_ph_s_5pG1{"ss_ph_s_fast1"};
+        sFREQ_PHASE m_ph_n_5pG1{"ss_ph_n_fast1"};
+        sFREQ_PHASE m_ph_s_5pG2{"ss_ph_s_fast2"};
+        sFREQ_PHASE m_ph_n_5pG2{"ss_ph_n_fast2"};
+        sFREQ_PHASE m_ph_s_5pG3{"ss_ph_s_fast3"};
+        sFREQ_PHASE m_ph_n_5pG3{"ss_ph_n_fast3"};
+        sFREQ_PHASE m_ph_s_5pG4{"ss_ph_s_fast4"};
+        sFREQ_PHASE m_ph_n_5pG4{"ss_ph_n_fast4"};
+        sFREQ_PHASE m_ph_s_5pG5{"ss_ph_s_fast5"};
+        sFREQ_PHASE m_ph_n_5pG5{"ss_ph_n_fast5"};
 
         // CF HGWS
 
-        char m_HG[32];
+        char          m_HG[32];
+
         sRF_PULSE_EXT m_HG1{"ss_HG1"};
 
         sFREQ_PHASE m_ph_s_HG1{"ss_ph_s_HG1"};
@@ -215,11 +216,11 @@ class /*__IMP_EXP*/ SeqBuildBlockWatSupVAPOR_CF : public SeqBuildBlockWatSup
 
         // CF FAST
 
-        sGRAD_PULSE m_fastsp_1{"ss_fastsp_1"};
-        sGRAD_PULSE m_fastsp_2{"ss_fastsp_2"};
-        sGRAD_PULSE m_fastsp_3{"ss_fastsp_3"};
-        sGRAD_PULSE m_fastsp_4{"ss_fastsp_4"};
-        sGRAD_PULSE m_fastsp_5{"ss_fastsp_5"};
+        sGRAD_PULSE m_5pGsp_1{"ss_fastsp_1"};
+        sGRAD_PULSE m_5pGsp_2{"ss_fastsp_2"};
+        sGRAD_PULSE m_5pGsp_3{"ss_fastsp_3"};
+        sGRAD_PULSE m_5pGsp_4{"ss_fastsp_4"};
+        sGRAD_PULSE m_5pGsp_5{"ss_fastsp_5"};
 
         // CF HGWS
 
@@ -344,6 +345,8 @@ class /*__IMP_EXP*/ SeqBuildBlockWatSupVAPOR_CF : public SeqBuildBlockWatSup
         long m_lis_watsupRF{0};
         long m_lexcit_delay{0};
         long lT{0};
+        long   WatAdj {0};
+        long   hgws_flip{0};
 
         long tau{0};
         long tau3{0};

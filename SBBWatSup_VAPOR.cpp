@@ -53,6 +53,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
     //setNLSStatus(MRI_SBB_SBB_NORMAL, "fSBBWatSupVAPORprep:", nullptr);
     // resetPrepared();
     SEQ_TRACE_WARN.print("SBB1");
+    setSBBDurationPerRequest(0);
     // if (!SeqBuildBlockWatSup::prep(rMrProt, rSeqLim, rSeqExpo))
     //     return false;
 
@@ -99,10 +100,13 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
     WS_option = rMrProt.wipMemBlock().getalFree()[19];
     freq_shift        = rMrProt.wipMemBlock().getalFree()[20]; 
     VAPOR_bw          = rMrProt.wipMemBlock().getalFree()[21]; 
+    WatAdj            = rMrProt.wipMemBlock().getalFree()[22];
+    hgws_flip         = rMrProt.wipMemBlock().getalFree()[23];
     
     WStechnique = WS_option;
 
     SEQ_TRACE_WARN.print("%d",WS_option);
+    SEQ_TRACE_WARN.print("wat adj, %d", WatAdj);
 
     // m_lSBBDurationPerRequest_us = grad_strength;
     // std::cout<<"beta_vapor: "<< beta_vapor<<std::endl;
@@ -168,11 +172,16 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
 		strcpy( m_asym_sinc, "asym_ex.asym_jn_4lobe_400"); // CF for VAPOR - truncated 4 lobe JN_sinc
 	}
 	else if(WStechnique == 7){
-		strcpy( m_HG, "hg_ws_1_flipped"); // CF for VAPOR - Hypergeometric pulse
+        if (hgws_flip == 0) // no flip
+        {
+            strcpy(m_HG, "hg_ws_1_ampInt"); // CF for VAPOR - Hypergeometric pulses
+        }
+        else if (hgws_flip == 1)
+        {
+            strcpy(m_HG, "hg_ws_1_flipped"); 
+        }
+		
 	}
-
-
-    SEQ_TRACE_WARN.print("%s",m_HG);
 	
     FASTpulsedur_1_4 = 6400.; // in us CF FAST
     FASTpulsedur_5 = 3700.; // in us CF FAST
@@ -215,7 +224,14 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         asym_factor = 296./400.;
     }
     else if(WStechnique == 7){
-        asym_factor = 350./400;
+        if (hgws_flip == 0)
+        {
+            asym_factor = 50. / 400; // no flip
+        }
+        else if (hgws_flip == 1) 
+        {
+            asym_factor = 350. / 400; // flip
+        }
     }
 
     std::cout<<"asym factor:"<< asym_factor<< std::endl;
@@ -242,13 +258,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_rf_ws1.setFlipAngle( 89.2 );
         m_rf_ws1.setInitialPhase( 0.0 ); // not used
         m_rf_ws1.setThickness( 10.0 ); // not used
-        m_rf_ws1.setFlipAngleCorrection();
-        if( ! ( m_rf_ws1.prepGauss( rMrProt, rSeqExpo, 35. )))
-        {
-                SEQ_TRACE_WARN.print("\nfSEQPrep():  %s\n",
-                        "can't prepare water suppression pulse" );
-                return m_rf_ws1.getNLSStatus();
-        }
+        
 
 		// std::cout<<"m_bvap: "<<m_bvap<<std::endl;
         m_rf_ws2.setTypeExcitation();
@@ -257,13 +267,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_rf_ws2.setFlipAngle( 83.4 );
         m_rf_ws2.setInitialPhase( 0.0 ); // not used
         m_rf_ws2.setThickness( 10.0 ); // not used
-        m_rf_ws2.setFlipAngleCorrection();
-        if( ! ( m_rf_ws2.prepGauss( rMrProt, rSeqExpo, 35. )))
-        {
-                SEQ_TRACE_WARN.print( "\nfSEQPrep():  %s\n",
-                        "can't prepare water suppression pulse" );
-                return m_rf_ws2.getNLSStatus();
-        }
+        
 
         m_rf_ws3.setTypeExcitation();
         m_rf_ws3.setDuration( 25600 ) ; // in us
@@ -271,13 +275,35 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_rf_ws3.setFlipAngle( 160.8 );
         m_rf_ws3.setInitialPhase( 0.0 ); // not used
         m_rf_ws3.setThickness( 10.0 ); // not used
-        m_rf_ws3.setFlipAngleCorrection();
+
+        if (WatAdj == 0)
+        {
+            m_rf_ws1.setFlipAngleCorrection();
+            m_rf_ws2.setFlipAngleCorrection();
+            m_rf_ws3.setFlipAngleCorrection();
+        }
+
+        if (!(m_rf_ws1.prepGauss(rMrProt, rSeqExpo, 35.)))
+        {
+            SEQ_TRACE_WARN.print("\nfSEQPrep():  %s\n", "can't prepare water suppression pulse");
+            return m_rf_ws1.getNLSStatus();
+        }
+
+        if (!(m_rf_ws2.prepGauss(rMrProt, rSeqExpo, 35.)))
+        {
+            SEQ_TRACE_WARN.print("\nfSEQPrep():  %s\n", "can't prepare water suppression pulse");
+            return m_rf_ws2.getNLSStatus();
+        }
+
         if( ! ( m_rf_ws3.prepGauss( rMrProt, rSeqExpo, 35. )))
         {
                 SEQ_TRACE_WARN.print( "\nfSEQPrep():  %s\n",
                         "can't prepare water suppression pulse" );
                 return m_rf_ws3.getNLSStatus();
         }
+
+
+        
 
 		m_ph_s_ws.setFrequency( 0L );
         m_ph_n_ws.setFrequency( 0L );
@@ -300,13 +326,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_rf_vapor1.setFlipAngle( beta_multiplier_1*beta_vapor );
         m_rf_vapor1.setInitialPhase( 0.0 ); // not used
         m_rf_vapor1.setThickness( 10.0 ); // not used
-        // m_rf_vapor1.setFlipAngleCorrection();
-        if( ! ( m_rf_vapor1.prepGauss( rMrProt, rSeqExpo, VAPOR_bw )))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                return m_rf_vapor1.getNLSStatus();
-        }
-
 
         m_rf_vapor2.setTypeExcitation();
         m_rf_vapor2.setDuration( VAPOR_RF_dur ) ; // in us
@@ -314,14 +333,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_rf_vapor2.setFlipAngle( beta_multiplier_2*beta_vapor );
         m_rf_vapor2.setInitialPhase( 0.0 ); // not used
         m_rf_vapor2.setThickness( 10.0 ); // not used
-        // m_rf_vapor2.setFlipAngleCorrection();
-        if( ! ( m_rf_vapor2.prepGauss( rMrProt, rSeqExpo, VAPOR_bw )))
-        {       
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_rf_vapor2.getNLSStatus();
-        }
+        
 
         m_rf_vapor3.setTypeExcitation();
         m_rf_vapor3.setDuration( VAPOR_RF_dur ) ; // in us MIGHT BE A PROBLEM 10NS MINIMUM
@@ -329,14 +341,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_rf_vapor3.setFlipAngle( beta_multiplier_3*beta_vapor ); 
         m_rf_vapor3.setInitialPhase( 0.0 ); // not used
         m_rf_vapor3.setThickness( 10.0 ); // not used
-        // m_rf_vapor3.setFlipAngleCorrection();
-        if (!(m_rf_vapor3.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_rf_vapor3.getNLSStatus();
-        }
 
         m_rf_vapor4.setTypeExcitation();
         m_rf_vapor4.setDuration( VAPOR_RF_dur ) ; // in us
@@ -344,14 +348,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_rf_vapor4.setFlipAngle( beta_multiplier_4*beta_vapor );
         m_rf_vapor4.setInitialPhase( 0.0 ); // not used
         m_rf_vapor4.setThickness( 10.0 ); // not used
-        // m_rf_vapor4.setFlipAngleCorrection();
-        if (!(m_rf_vapor4.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_rf_vapor4.getNLSStatus();
-        }
 
         m_rf_vapor5.setTypeExcitation();
         m_rf_vapor5.setDuration( VAPOR_RF_dur ) ; // in us
@@ -359,14 +355,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_rf_vapor5.setFlipAngle( beta_multiplier_5*beta_vapor );
         m_rf_vapor5.setInitialPhase( 0.0 ); // not used
         m_rf_vapor5.setThickness( 10.0 ); // not used
-        // m_rf_vapor5.setFlipAngleCorrection();
-        if (!(m_rf_vapor5.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_rf_vapor5.getNLSStatus();
-        }
 
         m_rf_vapor6.setTypeExcitation();
         m_rf_vapor6.setDuration( VAPOR_RF_dur ) ; // in us
@@ -374,14 +362,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_rf_vapor6.setFlipAngle( beta_multiplier_6*beta_vapor );
         m_rf_vapor6.setInitialPhase( 0.0 ); // not used
         m_rf_vapor6.setThickness( 10.0 ); // not used
-        // m_rf_vapor6.setFlipAngleCorrection();
-        if (!(m_rf_vapor6.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_rf_vapor6.getNLSStatus();
-        }
 
         m_rf_vapor7.setTypeExcitation();
         m_rf_vapor7.setDuration( VAPOR_RF_dur ) ; // in us
@@ -389,14 +369,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_rf_vapor7.setFlipAngle( beta_multiplier_7*beta_vapor );
         m_rf_vapor7.setInitialPhase( 0.0 ); // not used
         m_rf_vapor7.setThickness( 10.0 ); // not used
-        // m_rf_vapor7.setFlipAngleCorrection();
-        if (!(m_rf_vapor7.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_rf_vapor7.getNLSStatus();
-        }
 
         m_rf_vapor8.setTypeExcitation();
         m_rf_vapor8.setDuration( VAPOR_RF_dur ) ; // in us
@@ -404,7 +376,74 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_rf_vapor8.setFlipAngle( beta_multiplier_8*beta_vapor ); 
         m_rf_vapor8.setInitialPhase( 0.0 ); // not used
         m_rf_vapor8.setThickness( 10.0 ); // not used
-        // m_rf_vapor8.setFlipAngleCorrection();
+        m_rf_vapor8.setFlipAngleCorrection();
+
+        if (WatAdj == 0)
+        {
+            m_rf_vapor1.setFlipAngleCorrection();
+            m_rf_vapor2.setFlipAngleCorrection();
+            m_rf_vapor3.setFlipAngleCorrection();
+            m_rf_vapor4.setFlipAngleCorrection();
+            m_rf_vapor5.setFlipAngleCorrection();
+            m_rf_vapor6.setFlipAngleCorrection();
+            m_rf_vapor7.setFlipAngleCorrection();
+            m_rf_vapor8.setFlipAngleCorrection();
+        }
+        
+        if (!(m_rf_vapor1.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            return m_rf_vapor1.getNLSStatus();
+        }
+
+        if (!(m_rf_vapor2.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_rf_vapor2.getNLSStatus();
+        }
+
+        if (!(m_rf_vapor3.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_rf_vapor3.getNLSStatus();
+        }
+
+        if (!(m_rf_vapor4.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_rf_vapor4.getNLSStatus();
+        }
+
+        if (!(m_rf_vapor5.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_rf_vapor5.getNLSStatus();
+        }
+
+        if (!(m_rf_vapor6.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_rf_vapor6.getNLSStatus();
+        }
+
+        if (!(m_rf_vapor7.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_rf_vapor7.getNLSStatus();
+        }
+
         if (!(m_rf_vapor8.prepGauss(rMrProt, rSeqExpo, VAPOR_bw)))
         {
                 SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
@@ -458,108 +497,108 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
     }
 
     else if(WStechnique == 2){
-        SEQ_TRACE_WARN.print("Warning: prepping FAST pulses = %ld", WStechnique);
-        m_rf_fast1.setTypeExcitation();
-        m_rf_fast1.setDuration( FASTpulsedur_1_4 ) ; // in us
-        m_rf_fast1.setSamples( FASTpulsedur_1_4/100 );
-        m_rf_fast1.setFlipAngle( 100 ); 
-        m_rf_fast1.setInitialPhase( 0.0 ); // not used
-        m_rf_fast1.setThickness( 10.0 ); // not used
-        // m_rf_fast1.setFlipAngleCorrection();
-        if( ! ( m_rf_fast1.prepGauss( rMrProt, rSeqExpo, 35. )))
+        SEQ_TRACE_WARN.print("Warning: prepping FAST pulses = %f", WStechnique);
+        m_rf_5pG1.setTypeExcitation();
+        m_rf_5pG1.setDuration(VAPOR_RF_dur); // in us
+        m_rf_5pG1.setSamples(VAPOR_RF_dur / 100);
+        m_rf_5pG1.setFlipAngle(beta_multiplier_1 * beta_vapor); 
+        m_rf_5pG1.setInitialPhase( 0.0 ); // not used
+        m_rf_5pG1.setThickness( 10.0 ); // not used
+        // m_rf_5pG1.setFlipAngleCorrection();
+        if( ! ( m_rf_5pG1.prepGauss( rMrProt, rSeqExpo, 35. )))
         {
                 SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
                 // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
                 //         "can't prepare water suppression pulse" );
-                return m_rf_fast1.getNLSStatus();
+                return m_rf_5pG1.getNLSStatus();
         }
 
-        m_rf_fast2.setTypeExcitation();
-        m_rf_fast2.setDuration( FASTpulsedur_1_4 ) ; // in us
-        m_rf_fast2.setSamples( FASTpulsedur_1_4/100 );
-        m_rf_fast2.setFlipAngle( 80 ); 
-        m_rf_fast2.setInitialPhase( 0.0 ); // not used
-        m_rf_fast2.setThickness( 10.0 ); // not used
-        // m_rf_fast2.setFlipAngleCorrection();
-        if( ! ( m_rf_fast2.prepGauss( rMrProt, rSeqExpo, 35. )))
+        m_rf_5pG2.setTypeExcitation();
+        m_rf_5pG2.setDuration(VAPOR_RF_dur); // in us
+        m_rf_5pG2.setSamples(VAPOR_RF_dur / 100);
+        m_rf_5pG2.setFlipAngle(beta_multiplier_2 * beta_vapor); 
+        m_rf_5pG2.setInitialPhase( 0.0 ); // not used
+        m_rf_5pG2.setThickness( 10.0 ); // not used
+        // m_rf_5pG2.setFlipAngleCorrection();
+        if( ! ( m_rf_5pG2.prepGauss( rMrProt, rSeqExpo, 35. )))
         {
                 SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
                 // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
                 //         "can't prepare water suppression pulse" );
-                return m_rf_fast2.getNLSStatus();
+                return m_rf_5pG2.getNLSStatus();
         }		
 
-        m_rf_fast3.setTypeExcitation();
-        m_rf_fast3.setDuration( FASTpulsedur_1_4 ) ; // in us
-        m_rf_fast3.setSamples( FASTpulsedur_1_4/100 );
-        m_rf_fast3.setFlipAngle( 125 ); 
-        m_rf_fast3.setInitialPhase( 0.0 ); // not used
-        m_rf_fast3.setThickness( 10.0 ); // not used
-        // m_rf_fast3.setFlipAngleCorrection();
-        if( ! ( m_rf_fast3.prepGauss( rMrProt, rSeqExpo, 35. )))
+        m_rf_5pG3.setTypeExcitation();
+        m_rf_5pG3.setDuration(VAPOR_RF_dur); // in us
+        m_rf_5pG3.setSamples(VAPOR_RF_dur / 100);
+        m_rf_5pG3.setFlipAngle(beta_multiplier_3 * beta_vapor); 
+        m_rf_5pG3.setInitialPhase( 0.0 ); // not used
+        m_rf_5pG3.setThickness( 10.0 ); // not used
+        // m_rf_5pG3.setFlipAngleCorrection();
+        if( ! ( m_rf_5pG3.prepGauss( rMrProt, rSeqExpo, 35. )))
         {
                 SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
                 // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
                 //         "can't prepare water suppression pulse" );
-                return m_rf_fast3.getNLSStatus();
+                return m_rf_5pG3.getNLSStatus();
         }		
 
-        m_rf_fast4.setTypeExcitation();
-        m_rf_fast4.setDuration( FASTpulsedur_1_4 ) ; // in us
-        m_rf_fast4.setSamples( FASTpulsedur_1_4/100 );
-        m_rf_fast4.setFlipAngle( 65 ); 
-        m_rf_fast4.setInitialPhase( 0.0 ); // not used
-        m_rf_fast4.setThickness( 10.0 ); // not used
-        // m_rf_fast4.setFlipAngleCorrection();
-        if( ! ( m_rf_fast4.prepGauss( rMrProt, rSeqExpo, 35. )))
+        m_rf_5pG4.setTypeExcitation();
+        m_rf_5pG4.setDuration(VAPOR_RF_dur); // in us
+        m_rf_5pG4.setSamples(VAPOR_RF_dur / 100);
+        m_rf_5pG4.setFlipAngle(beta_multiplier_4 * beta_vapor); 
+        m_rf_5pG4.setInitialPhase( 0.0 ); // not used
+        m_rf_5pG4.setThickness( 10.0 ); // not used
+        // m_rf_5pG4.setFlipAngleCorrection();
+        if( ! ( m_rf_5pG4.prepGauss( rMrProt, rSeqExpo, 35. )))
         {
                 SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
                 // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
                 //         "can't prepare water suppression pulse" );
-                return m_rf_fast4.getNLSStatus();
+                return m_rf_5pG4.getNLSStatus();
         }		
 
-        m_rf_fast5.setTypeExcitation();
-        m_rf_fast5.setDuration( FASTpulsedur_5 ) ; // in us
-        m_rf_fast5.setSamples( FASTpulsedur_5/100 );
-        m_rf_fast5.setFlipAngle( 170 ); 
-        m_rf_fast5.setInitialPhase( 0.0 ); // not used
-        m_rf_fast5.setThickness( 10.0 ); // not used
-        // m_rf_fast5.setFlipAngleCorrection();
-        if( ! ( m_rf_fast5.prepGauss( rMrProt, rSeqExpo, 35. )))
+        m_rf_5pG5.setTypeExcitation();
+        m_rf_5pG5.setDuration(VAPOR_RF_dur); // in us
+        m_rf_5pG5.setSamples(VAPOR_RF_dur / 100);
+        m_rf_5pG5.setFlipAngle(beta_multiplier_5 * beta_vapor); 
+        m_rf_5pG5.setInitialPhase( 0.0 ); // not used
+        m_rf_5pG5.setThickness( 10.0 ); // not used
+        // m_rf_5pG5.setFlipAngleCorrection();
+        if( ! ( m_rf_5pG5.prepGauss( rMrProt, rSeqExpo, 35. )))
         {
                 SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
                 // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
                 //         "can't prepare water suppression pulse" );
-                return m_rf_fast5.getNLSStatus();
+                return m_rf_5pG5.getNLSStatus();
         }		
 
-        m_ph_s_fast1.setFrequency( 0L );
-        m_ph_n_fast1.setFrequency( 0L );
-        m_ph_s_fast1.setPhase( 0 );
-        m_ph_n_fast1.setPhase( 0 );
+        m_ph_s_5pG1.setFrequency(0L);
+        m_ph_n_5pG1.setFrequency(0L);
+        m_ph_s_5pG1.setPhase(0);
+        m_ph_n_5pG1.setPhase(0);
 
-        m_ph_s_fast2.setFrequency( 0L );
-        m_ph_n_fast2.setFrequency( 0L );
-        m_ph_s_fast2.setPhase( 0 );
-        m_ph_n_fast2.setPhase( 0 );
+        m_ph_s_5pG2.setFrequency(0L);
+        m_ph_n_5pG2.setFrequency(0L);
+        m_ph_s_5pG2.setPhase(0);
+        m_ph_n_5pG2.setPhase(0);
 
-        m_ph_s_fast3.setFrequency( 0L );
-        m_ph_n_fast3.setFrequency( 0L );
-        m_ph_s_fast3.setPhase( 0 );
-        m_ph_n_fast3.setPhase( 0 );
+        m_ph_s_5pG3.setFrequency(0L);
+        m_ph_n_5pG3.setFrequency(0L);
+        m_ph_s_5pG3.setPhase(0);
+        m_ph_n_5pG3.setPhase(0);
 
-        m_ph_s_fast4.setFrequency( 0L );
-        m_ph_n_fast4.setFrequency( 0L );
-        m_ph_s_fast4.setPhase( 0 );
-        m_ph_n_fast4.setPhase( 0 );
+        m_ph_s_5pG4.setFrequency(0L);
+        m_ph_n_5pG4.setFrequency(0L);
+        m_ph_s_5pG4.setPhase(0);
+        m_ph_n_5pG4.setPhase(0);
 
-        m_ph_s_fast5.setFrequency( 0L );
-        m_ph_n_fast5.setFrequency( 0L );
-        m_ph_s_fast5.setPhase( 0 );
-        m_ph_n_fast5.setPhase( 0 );
+        m_ph_s_5pG5.setFrequency(0L);
+        m_ph_n_5pG5.setFrequency(0L);
+        m_ph_s_5pG5.setPhase(0);
+        m_ph_n_5pG5.setPhase(0);
 
-        SEQ_TRACE_WARN.print("Warning: FINISHED prepping FAST pulses = %f", WStechnique);
+        SEQ_TRACE_WARN.print("Warning: FINISHED prepping 5pG pulses = %f", WStechnique);
 
     }
 
@@ -569,71 +608,89 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_HG1.setDuration( 30000 ) ;
         m_HG1.setFlipAngle( 74.2 );
         m_HG1.setInitialPhase( 0.0 );
-        m_HG1.setFamilyName( m_HG );
+        m_HG1.setFamilyName(m_HG);
         m_HG1.setThickness(  10.0 );
         SEQ_TRACE_WARN.print("m_HG 1");
-        if( ! ( m_HG1.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_HG1.getNLSStatus();
-        }
+        
 
         m_HG2.setTypeUndefined();
         m_HG2.setDuration( 30000 ) ;
         m_HG2.setFlipAngle( 91.9 );
         m_HG2.setInitialPhase( 0.0 );
-        m_HG2.setFamilyName( m_HG );
+        m_HG2.setFamilyName(m_HG);
         m_HG2.setThickness(  10.0 );
-        if( ! ( m_HG2.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_HG2.getNLSStatus();
-        }
+        
 
         m_HG3.setTypeUndefined();
         m_HG3.setDuration( 30000 ) ;
         m_HG3.setFlipAngle( 68.4 );
         m_HG3.setInitialPhase( 0.0 );
-        m_HG3.setFamilyName( m_HG );
+        m_HG3.setFamilyName(m_HG);
         m_HG3.setThickness(  10.0 );
-        if( ! ( m_HG3.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_HG3.getNLSStatus();
-        }
+        
 
         m_HG4.setTypeUndefined();
         m_HG4.setDuration( 30000 ) ;
         m_HG4.setFlipAngle( 83.3 );
         m_HG4.setInitialPhase( 0.0 );
-        m_HG4.setFamilyName( m_HG );
+        m_HG4.setFamilyName(m_HG);
         m_HG4.setThickness(  10.0 );
-        if( ! ( m_HG4.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_HG4.getNLSStatus();
-        }
+        
 
         m_HG5.setTypeUndefined();
         m_HG5.setDuration( 30000 ) ;
         m_HG5.setFlipAngle( 142.5 );
         m_HG5.setInitialPhase( 0.0 );
-        m_HG5.setFamilyName( m_HG );
+        m_HG5.setFamilyName(m_HG);
         m_HG5.setThickness(  10.0 );
-        if( ! ( m_HG5.prepExternal( rMrProt, rSeqExpo)))
+
+        if (WatAdj == 0)
         {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_HG5.getNLSStatus();
+            m_HG1.setFlipAngleCorrection();
+            m_HG2.setFlipAngleCorrection();
+            m_HG3.setFlipAngleCorrection();
+            m_HG4.setFlipAngleCorrection();
+            m_HG5.setFlipAngleCorrection();
+        }
+
+        if (!(m_HG1.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_HG1.getNLSStatus();
+        }
+
+        if (!(m_HG2.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_HG2.getNLSStatus();
+        }
+
+        if (!(m_HG3.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_HG3.getNLSStatus();
+        }
+
+        if (!(m_HG4.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_HG4.getNLSStatus();
+        }
+
+        if (!(m_HG5.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_HG5.getNLSStatus();
         }
 
         m_ph_s_HG1.setFrequency( freq_shift );
@@ -675,13 +732,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym1.setInitialPhase( 0.0 );
         m_vap_asym1.setFamilyName( m_asym_sinc );
         m_vap_asym1.setThickness(  10.0 );
-        if( ! ( m_vap_asym1.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym1.getNLSStatus();
-        }
+        
 
         m_vap_asym2.setTypeUndefined();
         m_vap_asym2.setDuration(VAPOR_RF_dur);
@@ -689,13 +740,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym2.setInitialPhase( 0.0 );
         m_vap_asym2.setFamilyName( m_asym_sinc );
         m_vap_asym2.setThickness(  10.0 );
-        if( ! ( m_vap_asym2.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym2.getNLSStatus();
-        }
+        
 
         m_vap_asym3.setTypeUndefined();
         m_vap_asym3.setDuration(VAPOR_RF_dur);
@@ -703,13 +748,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym3.setInitialPhase( 0.0 );
         m_vap_asym3.setFamilyName( m_asym_sinc );
         m_vap_asym3.setThickness(  10.0 );
-        if( ! ( m_vap_asym3.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym3.getNLSStatus();
-        }
+        
 
         m_vap_asym4.setTypeUndefined();
         m_vap_asym4.setDuration(VAPOR_RF_dur);
@@ -717,13 +756,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym4.setInitialPhase( 0.0 );
         m_vap_asym4.setFamilyName( m_asym_sinc );
         m_vap_asym4.setThickness(  10.0 );
-        if( ! ( m_vap_asym4.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym4.getNLSStatus();
-        }
 
         m_vap_asym5.setTypeUndefined();
         m_vap_asym5.setDuration(VAPOR_RF_dur);
@@ -731,13 +763,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym5.setInitialPhase( 0.0 );
         m_vap_asym5.setFamilyName( m_asym_sinc );
         m_vap_asym5.setThickness(  10.0 );
-        if( ! ( m_vap_asym5.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym5.getNLSStatus();
-        }
 
         m_vap_asym6.setTypeUndefined();
         m_vap_asym6.setDuration(VAPOR_RF_dur);
@@ -745,13 +770,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym6.setInitialPhase( 0.0 );
         m_vap_asym6.setFamilyName( m_asym_sinc );
         m_vap_asym6.setThickness(  10.0 );
-        if( ! ( m_vap_asym6.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym6.getNLSStatus();
-        }
 
         m_vap_asym7.setTypeUndefined();
         m_vap_asym7.setDuration(VAPOR_RF_dur);
@@ -759,13 +777,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym7.setInitialPhase( 0.0 );
         m_vap_asym7.setFamilyName( m_asym_sinc );
         m_vap_asym7.setThickness(  10.0 );
-        if( ! ( m_vap_asym7.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym7.getNLSStatus();
-        }
 
         m_vap_asym8.setTypeUndefined();
         m_vap_asym8.setDuration(VAPOR_RF_dur);
@@ -773,12 +784,81 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym8.setInitialPhase( 0.0 );
         m_vap_asym8.setFamilyName( m_asym_sinc );
         m_vap_asym8.setThickness(  10.0 );
-        if( ! ( m_vap_asym8.prepExternal( rMrProt, rSeqExpo)))
+
+        if (WatAdj == 0)
         {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym8.getNLSStatus();
+            m_vap_asym1.setFlipAngleCorrection();
+            m_vap_asym2.setFlipAngleCorrection();
+            m_vap_asym3.setFlipAngleCorrection();
+            m_vap_asym4.setFlipAngleCorrection();
+            m_vap_asym5.setFlipAngleCorrection();
+            m_vap_asym6.setFlipAngleCorrection();
+            m_vap_asym7.setFlipAngleCorrection();
+            m_vap_asym8.setFlipAngleCorrection();
+        }
+
+        if (!(m_vap_asym1.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym1.getNLSStatus();
+        }
+
+        if (!(m_vap_asym2.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym2.getNLSStatus();
+        }
+
+        if (!(m_vap_asym3.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym3.getNLSStatus();
+        }
+
+        if (!(m_vap_asym4.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym4.getNLSStatus();
+        }
+
+        if (!(m_vap_asym5.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym5.getNLSStatus();
+        }
+
+        if (!(m_vap_asym6.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym6.getNLSStatus();
+        }
+
+        if (!(m_vap_asym7.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym7.getNLSStatus();
+        }
+
+        if (!(m_vap_asym8.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym8.getNLSStatus();
         }
 
         m_ph_s_asym1.setFrequency( freq_shift );
@@ -834,13 +914,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym1.setInitialPhase( 0.0 );
         m_vap_asym1.setFamilyName( m_asym_sinc );
         m_vap_asym1.setThickness(  10.0 );
-        if( ! ( m_vap_asym1.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym1.getNLSStatus();
-        }
+        
 
         m_vap_asym2.setTypeUndefined();
         m_vap_asym2.setDuration(VAPOR_RF_dur);
@@ -848,13 +922,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym2.setInitialPhase( 0.0 );
         m_vap_asym2.setFamilyName( m_asym_sinc );
         m_vap_asym2.setThickness(  10.0 );
-        if( ! ( m_vap_asym2.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym2.getNLSStatus();
-        }
 
         m_vap_asym3.setTypeUndefined();
         m_vap_asym3.setDuration(VAPOR_RF_dur);
@@ -862,13 +929,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym3.setInitialPhase( 0.0 );
         m_vap_asym3.setFamilyName( m_asym_sinc );
         m_vap_asym3.setThickness(  10.0 );
-        if( ! ( m_vap_asym3.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym3.getNLSStatus();
-        }
+        
 
         m_vap_asym4.setTypeUndefined();
         m_vap_asym4.setDuration(VAPOR_RF_dur);
@@ -876,13 +937,6 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym4.setInitialPhase( 0.0 );
         m_vap_asym4.setFamilyName( m_asym_sinc );
         m_vap_asym4.setThickness(  10.0 );
-        if( ! ( m_vap_asym4.prepExternal( rMrProt, rSeqExpo)))
-        {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym4.getNLSStatus();
-        }
 
         m_vap_asym5.setTypeUndefined();
         m_vap_asym5.setDuration(VAPOR_RF_dur);
@@ -890,12 +944,55 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym5.setInitialPhase( 0.0 );
         m_vap_asym5.setFamilyName( m_asym_sinc );
         m_vap_asym5.setThickness(  10.0 );
-        if( ! ( m_vap_asym5.prepExternal( rMrProt, rSeqExpo)))
+
+        if (WatAdj == 0)
         {
-                SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
-                // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
-                //         "can't prepare water suppression pulse" );
-                return m_vap_asym5.getNLSStatus();
+            m_vap_asym1.setFlipAngleCorrection();
+            m_vap_asym2.setFlipAngleCorrection();
+            m_vap_asym3.setFlipAngleCorrection();
+            m_vap_asym4.setFlipAngleCorrection();
+            m_vap_asym5.setFlipAngleCorrection();
+            SEQ_TRACE_WARN.print("watadj yes");
+        }
+
+        if (!(m_vap_asym1.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym1.getNLSStatus();
+        }
+
+        if (!(m_vap_asym2.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym2.getNLSStatus();
+        }
+
+        if (!(m_vap_asym3.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym3.getNLSStatus();
+        }
+
+        if (!(m_vap_asym4.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym4.getNLSStatus();
+        }
+
+        if (!(m_vap_asym5.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym5.getNLSStatus();
         }
 
         m_ph_s_asym1.setFrequency( freq_shift );
@@ -926,6 +1023,144 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         SEQ_TRACE_WARN.print("Warning: FINISHED prepping asym pulses = %f", WStechnique);
     }
 
+    else if (WStechnique == 10)
+    { // 6 pulses
+        SEQ_TRACE_WARN.print("Warning: prepping asym pulses = %f", WStechnique);
+
+        m_vap_asym1.setTypeUndefined();
+        m_vap_asym1.setDuration(VAPOR_RF_dur);
+        m_vap_asym1.setFlipAngle(beta_multiplier_1 * beta_vapor);
+        m_vap_asym1.setInitialPhase(0.0);
+        m_vap_asym1.setFamilyName(m_asym_sinc);
+        m_vap_asym1.setThickness(10.0);
+
+        m_vap_asym2.setTypeUndefined();
+        m_vap_asym2.setDuration(VAPOR_RF_dur);
+        m_vap_asym2.setFlipAngle(beta_multiplier_2 * beta_vapor);
+        m_vap_asym2.setInitialPhase(0.0);
+        m_vap_asym2.setFamilyName(m_asym_sinc);
+        m_vap_asym2.setThickness(10.0);
+
+        m_vap_asym3.setTypeUndefined();
+        m_vap_asym3.setDuration(VAPOR_RF_dur);
+        m_vap_asym3.setFlipAngle(beta_multiplier_3 * beta_vapor);
+        m_vap_asym3.setInitialPhase(0.0);
+        m_vap_asym3.setFamilyName(m_asym_sinc);
+        m_vap_asym3.setThickness(10.0);
+
+        m_vap_asym4.setTypeUndefined();
+        m_vap_asym4.setDuration(VAPOR_RF_dur);
+        m_vap_asym4.setFlipAngle(beta_multiplier_4 * beta_vapor);
+        m_vap_asym4.setInitialPhase(0.0);
+        m_vap_asym4.setFamilyName(m_asym_sinc);
+        m_vap_asym4.setThickness(10.0);
+
+        m_vap_asym5.setTypeUndefined();
+        m_vap_asym5.setDuration(VAPOR_RF_dur);
+        m_vap_asym5.setFlipAngle(beta_multiplier_5 * beta_vapor);
+        m_vap_asym5.setInitialPhase(0.0);
+        m_vap_asym5.setFamilyName(m_asym_sinc);
+        m_vap_asym5.setThickness(10.0);
+
+        m_vap_asym6.setTypeUndefined();
+        m_vap_asym6.setDuration(VAPOR_RF_dur);
+        m_vap_asym6.setFlipAngle(beta_multiplier_6 * beta_vapor);
+        m_vap_asym6.setInitialPhase(0.0);
+        m_vap_asym6.setFamilyName(m_asym_sinc);
+        m_vap_asym6.setThickness(10.0);
+
+        if (WatAdj == 0)
+        {
+            m_vap_asym1.setFlipAngleCorrection();
+            m_vap_asym2.setFlipAngleCorrection();
+            m_vap_asym3.setFlipAngleCorrection();
+            m_vap_asym4.setFlipAngleCorrection();
+            m_vap_asym5.setFlipAngleCorrection();
+            m_vap_asym6.setFlipAngleCorrection();
+            SEQ_TRACE_WARN.print("watadj yes");
+        }
+
+        if (!(m_vap_asym1.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym1.getNLSStatus();
+        }
+
+        if (!(m_vap_asym2.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym2.getNLSStatus();
+        }
+
+        if (!(m_vap_asym3.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym3.getNLSStatus();
+        }
+
+        if (!(m_vap_asym4.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym4.getNLSStatus();
+        }
+
+        if (!(m_vap_asym5.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym5.getNLSStatus();
+        }
+
+        if (!(m_vap_asym6.prepExternal(rMrProt, rSeqExpo)))
+        {
+            SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
+            // TRACE_PUT1(TC_INFO, TF_SEQ, "\nfSEQPrep():  %s\n",
+            //         "can't prepare water suppression pulse" );
+            return m_vap_asym6.getNLSStatus();
+        }
+
+        m_ph_s_asym1.setFrequency(freq_shift);
+        m_ph_n_asym1.setFrequency(0L);
+        m_ph_s_asym1.setPhase(-offset_asymWS);
+        m_ph_n_asym1.setPhase(-offset_asymWS);
+
+        m_ph_s_asym2.setFrequency(freq_shift);
+        m_ph_n_asym2.setFrequency(0L);
+        m_ph_s_asym2.setPhase(-offset_asymWS);
+        m_ph_n_asym2.setPhase(-offset_asymWS);
+
+        m_ph_s_asym3.setFrequency(freq_shift);
+        m_ph_n_asym3.setFrequency(0L);
+        m_ph_s_asym3.setPhase(-offset_asymWS);
+        m_ph_n_asym3.setPhase(-offset_asymWS);
+
+        m_ph_s_asym4.setFrequency(freq_shift);
+        m_ph_n_asym4.setFrequency(0L);
+        m_ph_s_asym4.setPhase(-offset_asymWS);
+        m_ph_n_asym4.setPhase(-offset_asymWS);
+
+        m_ph_s_asym5.setFrequency(freq_shift);
+        m_ph_n_asym5.setFrequency(0L);
+        m_ph_s_asym5.setPhase(-offset_asymWS);
+        m_ph_n_asym5.setPhase(-offset_asymWS);
+
+        m_ph_s_asym6.setFrequency(freq_shift);
+        m_ph_n_asym6.setFrequency(0L);
+        m_ph_s_asym6.setPhase(-offset_asymWS);
+        m_ph_n_asym6.setPhase(-offset_asymWS);
+
+        SEQ_TRACE_WARN.print("Warning: FINISHED prepping asym pulses = %f", WStechnique);
+    }
+
     else if( WStechnique == 5){ // jn_asym_50 4 pulses with 50ms
         SEQ_TRACE_WARN.print("Warning: prepping asym pulses = %f", WStechnique);
 
@@ -935,6 +1170,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym1.setInitialPhase( 0.0 );
         m_vap_asym1.setFamilyName( m_asym_sinc );
         m_vap_asym1.setThickness(  10.0 );
+        m_vap_asym1.setFlipAngleCorrection();
         if( ! ( m_vap_asym1.prepExternal( rMrProt, rSeqExpo)))
         {
                 SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
@@ -948,7 +1184,8 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym2.setFlipAngle( beta_multiplier_2*beta_vapor );
         m_vap_asym2.setInitialPhase( 0.0 );
         m_vap_asym2.setFamilyName( m_asym_sinc );
-        m_vap_asym2.setThickness(  10.0 );
+        m_vap_asym2.setThickness(10.0);
+        m_vap_asym2.setFlipAngleCorrection();
         if( ! ( m_vap_asym2.prepExternal( rMrProt, rSeqExpo)))
         {
                 SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
@@ -963,6 +1200,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym3.setInitialPhase( 0.0 );
         m_vap_asym3.setFamilyName( m_asym_sinc );
         m_vap_asym3.setThickness(  10.0 );
+        m_vap_asym3.setFlipAngleCorrection();
         if( ! ( m_vap_asym3.prepExternal( rMrProt, rSeqExpo)))
         {
                 SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
@@ -977,6 +1215,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_vap_asym4.setInitialPhase( 0.0 );
         m_vap_asym4.setFamilyName( m_asym_sinc );
         m_vap_asym4.setThickness(  10.0 );
+        m_vap_asym4.setFlipAngleCorrection();
         if( ! ( m_vap_asym4.prepExternal( rMrProt, rSeqExpo)))
         {
                 SEQ_TRACE_WARN.print("can't prepare water suppression pulse");
@@ -1011,41 +1250,71 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
     if( m_lis_watsupRF )
     {
         if( WStechnique == 1 ){
-            m_RFInfoPerRequest += m_rf_vapor1.getRFInfo();
+            /*m_RFInfoPerRequest += m_rf_vapor1.getRFInfo();
             m_RFInfoPerRequest += m_rf_vapor2.getRFInfo();
             m_RFInfoPerRequest += m_rf_vapor3.getRFInfo();
             m_RFInfoPerRequest += m_rf_vapor4.getRFInfo();
             m_RFInfoPerRequest += m_rf_vapor5.getRFInfo();
             m_RFInfoPerRequest += m_rf_vapor6.getRFInfo();
             m_RFInfoPerRequest += m_rf_vapor7.getRFInfo();
-            m_RFInfoPerRequest += m_rf_vapor8.getRFInfo();
+            m_RFInfoPerRequest += m_rf_vapor8.getRFInfo();*/
+            // setRFInfoPerRequest(m_RFInfoPerRequest);
+
+            addRFInfoPerRequest(m_rf_vapor1.getRFInfo());
+            addRFInfoPerRequest(m_rf_vapor2.getRFInfo());
+            addRFInfoPerRequest(m_rf_vapor3.getRFInfo());
+            addRFInfoPerRequest(m_rf_vapor4.getRFInfo());
+            addRFInfoPerRequest(m_rf_vapor5.getRFInfo());
+            addRFInfoPerRequest(m_rf_vapor6.getRFInfo());
+            addRFInfoPerRequest(m_rf_vapor7.getRFInfo());
+            addRFInfoPerRequest(m_rf_vapor8.getRFInfo());
+
             std::cout<<"UGHHH VAPOR PUHLEASEEE2"<<std::endl;
         }
         else if(WStechnique == 2){ // CF fast
-            m_RFInfoPerRequest += m_rf_fast1.getRFInfo();
-            m_RFInfoPerRequest += m_rf_fast2.getRFInfo();
-            m_RFInfoPerRequest += m_rf_fast3.getRFInfo();
-            m_RFInfoPerRequest += m_rf_fast4.getRFInfo();
-            m_RFInfoPerRequest += m_rf_fast5.getRFInfo();
+            /*m_RFInfoPerRequest += m_rf_5pG1.getRFInfo();
+            m_RFInfoPerRequest += m_rf_5pG2.getRFInfo();
+            m_RFInfoPerRequest += m_rf_5pG3.getRFInfo();
+            m_RFInfoPerRequest += m_rf_5pG4.getRFInfo();
+            m_RFInfoPerRequest += m_rf_5pG5.getRFInfo();
+            setRFInfoPerRequest(m_RFInfoPerRequest);*/
+
+            addRFInfoPerRequest(m_rf_5pG1.getRFInfo());
+            addRFInfoPerRequest(m_rf_5pG2.getRFInfo());
+            addRFInfoPerRequest(m_rf_5pG3.getRFInfo());
+            addRFInfoPerRequest(m_rf_5pG4.getRFInfo());
+            addRFInfoPerRequest(m_rf_5pG5.getRFInfo());
         }
 
         // call this in the main sequence
 
         else if(WStechnique == 8){
-            m_RFInfoPerRequest += m_rf_ws1.getRFInfo();
+            /*m_RFInfoPerRequest += m_rf_ws1.getRFInfo();
             m_RFInfoPerRequest += m_rf_ws2.getRFInfo();
             m_RFInfoPerRequest += m_rf_ws3.getRFInfo();
+            setRFInfoPerRequest(m_RFInfoPerRequest);*/
+
+            addRFInfoPerRequest(m_rf_ws1.getRFInfo());
+            addRFInfoPerRequest(m_rf_ws2.getRFInfo());
+            addRFInfoPerRequest(m_rf_ws3.getRFInfo());
         } 
         else if(WStechnique == 7){ // CF HGWS
-            m_RFInfoPerRequest += m_HG1.getRFInfo();
+            /*m_RFInfoPerRequest += m_HG1.getRFInfo();
             m_RFInfoPerRequest += m_HG2.getRFInfo();
             m_RFInfoPerRequest += m_HG3.getRFInfo();
             m_RFInfoPerRequest += m_HG4.getRFInfo();
             m_RFInfoPerRequest += m_HG5.getRFInfo();
-            SEQ_TRACE_WARN.print("rfInfo from SBB watsup in SBB %ld", m_RFInfoPerRequest.getPulseEnergyWs());
+            setRFInfoPerRequest(m_RFInfoPerRequest);
+            SEQ_TRACE_WARN.print("rfInfo from SBB watsup in SBB %ld", m_RFInfoPerRequest.getPulseEnergyWs());*/
+
+            addRFInfoPerRequest(m_HG1.getRFInfo());
+            addRFInfoPerRequest(m_HG2.getRFInfo());
+            addRFInfoPerRequest(m_HG3.getRFInfo());
+            addRFInfoPerRequest(m_HG4.getRFInfo());
+            addRFInfoPerRequest(m_HG5.getRFInfo());
         }
         else if(WStechnique == 3 || WStechnique == 4 || WStechnique == 6){
-            m_RFInfoPerRequest += m_vap_asym1.getRFInfo();
+            /*m_RFInfoPerRequest += m_vap_asym1.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym2.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym3.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym4.getRFInfo();
@@ -1053,20 +1322,61 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
             m_RFInfoPerRequest += m_vap_asym6.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym7.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym8.getRFInfo();
+            setRFInfoPerRequest(m_RFInfoPerRequest);*/
+
+            addRFInfoPerRequest(m_vap_asym1.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym2.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym3.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym4.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym5.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym6.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym7.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym8.getRFInfo());
             
         }
         else if(WStechnique == 9){
-            m_RFInfoPerRequest += m_vap_asym1.getRFInfo();
+            /*m_RFInfoPerRequest += m_vap_asym1.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym2.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym3.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym4.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym5.getRFInfo();
+            setRFInfoPerRequest(m_RFInfoPerRequest);*/
+
+            addRFInfoPerRequest(m_vap_asym1.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym2.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym3.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym4.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym5.getRFInfo());
         }
-        else if(WStechnique == 5){
-            m_RFInfoPerRequest += m_vap_asym1.getRFInfo();
+
+        else if (WStechnique == 10)
+        {
+           /* m_RFInfoPerRequest += m_vap_asym1.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym2.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym3.getRFInfo();
             m_RFInfoPerRequest += m_vap_asym4.getRFInfo();
+            m_RFInfoPerRequest += m_vap_asym5.getRFInfo();
+            m_RFInfoPerRequest += m_vap_asym6.getRFInfo();
+            setRFInfoPerRequest(m_RFInfoPerRequest);*/
+
+            addRFInfoPerRequest(m_vap_asym1.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym2.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym3.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym4.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym5.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym6.getRFInfo());
+
+        }
+        else if(WStechnique == 5){
+            /*m_RFInfoPerRequest += m_vap_asym1.getRFInfo();
+            m_RFInfoPerRequest += m_vap_asym2.getRFInfo();
+            m_RFInfoPerRequest += m_vap_asym3.getRFInfo();
+            m_RFInfoPerRequest += m_vap_asym4.getRFInfo();
+            setRFInfoPerRequest(m_RFInfoPerRequest);*/
+            addRFInfoPerRequest(m_vap_asym1.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym2.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym3.getRFInfo());
+            addRFInfoPerRequest(m_vap_asym4.getRFInfo());
         }
     }
 
@@ -1170,6 +1480,44 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         }
     }
 
+    if (WStechnique == 10)
+    {
+        if (!SpecUtils::prepGradient(m_vaporsp_1, m_vaporsp_1amp, m_vaporsp_dur, m_vapSpRamp) || !(m_vaporsp_1.check()))
+        {
+            std::cout << "m_vaporsp_1.prepAmplitude failed" << std::endl;
+            return m_vaporsp_1.getNLSStatus();
+        }
+
+        if (!SpecUtils::prepGradient(m_vaporsp_2, m_vaporsp_2amp, m_vaporsp_dur, m_vapSpRamp) || !(m_vaporsp_2.check()))
+        {
+            std::cout << "m_vaporsp_2.prepAmplitude failed" << std::endl;
+            return m_vaporsp_2.getNLSStatus();
+        }
+
+        if (!SpecUtils::prepGradient(m_vaporsp_3, m_vaporsp_3amp, m_vaporsp_dur, m_vapSpRamp) || !(m_vaporsp_3.check()))
+        {
+            std::cout << "m_vaporsp_3.prepAmplitude failed" << std::endl;
+            return m_vaporsp_3.getNLSStatus();
+        }
+
+        if (!SpecUtils::prepGradient(m_vaporsp_4, m_vaporsp_4amp, m_vaporsp_dur, m_vapSpRamp) || !(m_vaporsp_4.check()))
+        {
+            std::cout << "m_vaporsp_4.prepAmplitude failed" << std::endl;
+            return m_vaporsp_4.getNLSStatus();
+        }
+
+        if (!SpecUtils::prepGradient(m_vaporsp_5, m_vaporsp_5amp, m_vaporsp_dur, m_vapSpRamp) || !(m_vaporsp_5.check()))
+        {
+            std::cout << "m_vaporsp_5.prepAmplitude failed" << std::endl;
+            return m_vaporsp_5.getNLSStatus();
+        }
+        if (!SpecUtils::prepGradient(m_vaporsp_6, m_vaporsp_6amp, m_vaporsp_dur, m_vapSpRamp) || !(m_vaporsp_5.check()))
+        {
+            std::cout << "m_vaporsp_6.prepAmplitude failed" << std::endl;
+            return m_vaporsp_6.getNLSStatus();
+        }
+    }
+
     if (WStechnique == 5)
     {
         if (!SpecUtils::prepGradient(m_vaporsp_1, m_vaporsp_1amp, m_vaporsp_dur, m_vapSpRamp) || !(m_vaporsp_1.check()))
@@ -1235,35 +1583,39 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
     {
         // FAST spoilers CF
 
-        if (!SpecUtils::prepGradient(m_fastsp_1, m_fastsp_1_3amp, m_fastsp_dur_1_3, m_fastSpRamp)
-            || !(m_fastsp_1.check()))
+        SEQ_TRACE_WARN.print("5pG prep spoilers");
+
+        if (!SpecUtils::prepGradient(m_5pGsp_1, m_vaporsp_1amp, m_vaporsp_dur, m_vapSpRamp)
+            || !(m_5pGsp_1.check()))
         {
-            std::cout << "m_fastsp_1.prepAmplitude failed" << std::endl;
-            return m_fastsp_1.getNLSStatus();
+            std::cout << "m_vaporsp_1.prepAmplitude failed" << std::endl;
+            return m_5pGsp_1.getNLSStatus();
         }
-        if (!SpecUtils::prepGradient(m_fastsp_2, m_fastsp_1_3amp, m_fastsp_dur_1_3, m_fastSpRamp)
-            || !(m_fastsp_2.check()))
+        if (!SpecUtils::prepGradient(m_5pGsp_2, m_vaporsp_2amp, m_vaporsp_dur, m_vapSpRamp)
+            || !(m_5pGsp_2.check()))
         {
-            std::cout << "m_fastsp_2.prepAmplitude failed" << std::endl;
-            return m_fastsp_2.getNLSStatus();
+            std::cout << "m_vaporsp_2.prepAmplitude failed" << std::endl;
+            return m_5pGsp_2.getNLSStatus();
         }
-        if (!SpecUtils::prepGradient(m_fastsp_3, m_fastsp_1_3amp, m_fastsp_dur_1_3, m_fastSpRamp)
-            || !(m_fastsp_3.check()))
+        if (!SpecUtils::prepGradient(m_5pGsp_3, m_vaporsp_3amp, m_vaporsp_dur, m_vapSpRamp)
+            || !(m_5pGsp_3.check()))
         {
-            std::cout << "m_fastsp_3.prepAmplitude failed" << std::endl;
-            return m_fastsp_3.getNLSStatus();
+            std::cout << "m_vaporsp_3.prepAmplitude failed" << std::endl;
+            return m_5pGsp_3.getNLSStatus();
         }
-        if (!SpecUtils::prepGradient(m_fastsp_4, m_fastsp_4amp, m_fastsp_dur_4, m_fastSpRamp) || !(m_fastsp_4.check()))
+        if (!SpecUtils::prepGradient(m_5pGsp_4, m_vaporsp_4amp, m_vaporsp_dur, m_vapSpRamp) || !(m_5pGsp_4.check()))
         {
-            std::cout << "m_fastsp_4.prepAmplitude failed" << std::endl;
-            return m_fastsp_4.getNLSStatus();
+            std::cout << "m_vaporsp_4.prepAmplitude failed" << std::endl;
+            return m_5pGsp_4.getNLSStatus();
         }
-        if (!SpecUtils::prepGradient(m_fastsp_5, m_fastsp_5amp, m_fastsp_dur_5, m_fastSpRamp) || !(m_fastsp_5.check()))
+        if (!SpecUtils::prepGradient(m_5pGsp_5, m_vaporsp_5amp, m_vaporsp_dur, m_vapSpRamp) || !(m_5pGsp_5.check()))
         {
-            std::cout << "m_fastsp_5.prepAmplitude failed" << std::endl;
-            return m_fastsp_5.getNLSStatus();
+            std::cout << "m_vaporsp_5.prepAmplitude failed" << std::endl;
+            return m_5pGsp_5.getNLSStatus();
         }
+        SEQ_TRACE_WARN.print("5pG yay spoilers");
     }
+
 
     if (WStechnique == 8)
     {
@@ -1596,6 +1948,128 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
 		}
     }
 
+    if (WStechnique == 10)
+    {
+        std::cout << "calculating VAPOR asym deadtime" << std::endl;
+        deadtime_1 = t1
+                     - ((1 - asym_factor) * m_vap_asym1.getDuration() + asym_factor * m_vap_asym2.getDuration()
+                        + m_vaporsp_1.getTotalTime());
+        std::cout << "deadtime_1: " << deadtime_1 << std::endl;
+        if (deadtime_1 < 0)
+        {
+            std::cout << "HEHE32: " << std::endl;
+            if (!(rSeqLim.isContextPrepForBinarySearch()))
+            {
+                SEQ_TRACE_WARN.print(
+                    "NEVER HAPPEN Warning from %s:\n"
+                    "t1 = %d us cannot be realized;\n"
+                    "deadtime_1 %d",
+                    ptModule,
+                    t1,
+                    deadtime_1);
+            }
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
+        std::cout << "HEHE31: " << std::endl;
+        deadtime_2 = t2
+                     - ((1 - asym_factor) * m_vap_asym2.getDuration() + asym_factor * m_vap_asym3.getDuration()
+                        + m_vaporsp_2.getTotalTime());
+        std::cout << "deadtime_2: " << deadtime_2 << std::endl;
+        if (deadtime_2 < 0)
+        {
+            if (!(rSeqLim.isContextPrepForBinarySearch()))
+            {
+                SEQ_TRACE_WARN.print(
+                    "NEVER HAPPEN Warning from %s:\n"
+                    "t2 = %d us cannot be realized;\n"
+                    "deadtime_2 %d",
+                    ptModule,
+                    t2,
+                    deadtime_2);
+            }
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
+        std::cout << "HEHE31111: " << std::endl;
+        deadtime_3 = t3
+                     - ((1 - asym_factor) * m_vap_asym3.getDuration() + asym_factor * m_vap_asym4.getDuration()
+                        + m_vaporsp_3.getTotalTime());
+        std::cout << "deadtime_3: " << deadtime_3 << std::endl;
+        if (deadtime_3 < 0)
+        {
+            if (!(rSeqLim.isContextPrepForBinarySearch()))
+            {
+                SEQ_TRACE_WARN.print(
+                    "NEVER HAPPEN Warning from %s:\n"
+                    "t3 = %d us cannot be realized;\n"
+                    "deadtime_3 %d",
+                    ptModule,
+                    t3,
+                    deadtime_3);
+            }
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
+        std::cout << "HEHE31111: " << std::endl;
+        deadtime_4 = t4
+                     - ((1 - asym_factor) * m_vap_asym4.getDuration() + asym_factor * m_vap_asym5.getDuration()
+                        + m_vaporsp_4.getTotalTime());
+        std::cout << "deadtime_4: " << deadtime_4 << std::endl;
+        if (deadtime_4 < 0)
+        {
+            if (!(rSeqLim.isContextPrepForBinarySearch()))
+            {
+                SEQ_TRACE_WARN.print(
+                    "NEVER HAPPEN Warning from %s:\n"
+                    "t4 = %d us cannot be realized;\n"
+                    "deadtime_4 %d",
+                    ptModule,
+                    t4,
+                    deadtime_4);
+            }
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
+
+        // deadtime_5 = t5 - ((1-asym_factor)*m_vap_asym5.getDuration() + 0.5*m_rf_exc->getDuration() +
+        // m_vaporsp_5.getTotalTime() -  m_rf_exc->getDuration());
+        
+        deadtime_5 = t5
+                     - ((1 - asym_factor) * m_vap_asym5.getDuration() + asym_factor * m_vap_asym6.getDuration()
+                        + m_vaporsp_5.getTotalTime());
+        std::cout << "deadtime_5: " << deadtime_5 << std::endl;
+        if (deadtime_5 < 0)
+        {
+            if (!(rSeqLim.isContextPrepForBinarySearch()))
+            {
+                SEQ_TRACE_WARN.print(
+                    "NEVER HAPPEN Warning from %s:\n"
+                    "t4 = %d us cannot be realized;\n"
+                    "deadtime_4 %d",
+                    ptModule,
+                    t5,
+                    deadtime_5);
+            }
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
+        
+        deadtime_6 = t6
+                     - ((1 - asym_factor) * m_vap_asym6.getDuration() + m_vaporsp_6.getTotalTime()
+                        + 0.5 * m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration()));
+        std::cout << "deadtime_6: " << deadtime_6 << std::endl;
+        if (deadtime_6 < 0)
+        {
+            if (!(rSeqLim.isContextPrepForBinarySearch()))
+            {
+                SEQ_TRACE_WARN.print(
+                    "NEVER HAPPEN Warning from %s:\n"
+                    "t5 = %d us cannot be realized;\n"
+                    "deadtime_6 %d",
+                    ptModule,
+                    t6,
+                    deadtime_6);
+            }
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
+    }
+
     if(WStechnique == 5){
         std::cout<<"calculating VAPOR asym deadtime"<<std::endl;
 		deadtime_1 = t1 - ((1-asym_factor) *  m_vap_asym1.getDuration() + asym_factor*m_vap_asym2.getDuration() + m_vaporsp_1.getTotalTime() );
@@ -1731,6 +2205,35 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
                       m_lexcit_delay = 0;
                 m_lexcit_delay = (m_lexcit_delay/GRAD_RASTER_TIME)*GRAD_RASTER_TIME; // USE DEFAULT ROUND UP FUNCTION - LOOK INTO THIS CF
                 std::cout<<"m_lexcit_delay VAPOR asym:"<<m_lexcit_delay<<std::endl;
+        }
+    }
+
+    if (WStechnique == 10)
+    {
+        if (m_rf_exc->getDuration() > m_vap_asym6.getDuration())
+        { // in the unlikeley case that the excit. pulse is longer than the wat. sup. pulse
+          // starting with VA15A and variable duration suppression pulses, this NEVER HAPPEN case is not any more
+          // supported
+            // #ifdef _DVP_DEBUG
+            SEQ_TRACE_DEBUG.print(
+                "\nfSEQPrep(): the excitation pulse (dur. %d us) must NOT be longer than the "
+                "\npreceeding water suppr. pulse VAPOR asym(dur. %d us).\n",
+                m_rf_exc->getDuration(),
+                m_vap_asym6.getDuration());
+
+            // #endif
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
+        else
+        { // the usual case that the excit. pulse is shorter than the wat. sup. pulse
+            // ... use the same spoil duration l as before, but compute m_lexcit_delay
+            m_lexcit_delay = (long)(.5 + t6 - (m_vaporsp_6.getTotalTime() + (1-asym_factor)*m_vap_asym6.getDuration() + 0.5*m_rf_exc->getDuration() +
+                      (m_grad_exc->getDuration() - m_rf_exc->getDuration()) ));
+            if (m_lexcit_delay < 0)
+                m_lexcit_delay = 0;
+            m_lexcit_delay = (m_lexcit_delay / GRAD_RASTER_TIME)
+                             * GRAD_RASTER_TIME; // USE DEFAULT ROUND UP FUNCTION - LOOK INTO THIS CF
+            std::cout << "m_lexcit_delay VAPOR asym:" << m_lexcit_delay << std::endl;
         }
     }
 
@@ -1879,25 +2382,109 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
 
     if (WStechnique == 2)
     {
-        m_fastsp_dur_1_3 = fast_t1_3 - (.5 * (m_rf_fast1.getDuration() + m_rf_fast2.getDuration() ) + m_fastSpRamp);
-        m_fastsp_dur_1_3 = (m_fastsp_dur_1_3/GRAD_RASTER_TIME)*GRAD_RASTER_TIME;
-        m_fastsp_1_3amp = 1000. * FASTgradmoment_1_3 / (double) m_fastsp_dur_1_3; 
+        SEQ_TRACE_WARN.print("5pG prep delays");
+        std::cout << "calculating VAPOR asym deadtime" << std::endl;
+        deadtime_1
+            = t1 - ((1 - 0.5) * m_rf_5pG1.getDuration() + 0.5 * m_rf_5pG2.getDuration() + m_5pGsp_1.getTotalTime());
+        std::cout << "deadtime_1: " << deadtime_1 << std::endl;
+        if (deadtime_1 < 0)
+        {
+            std::cout << "HEHE32: " << std::endl;
+            if (!(rSeqLim.isContextPrepForBinarySearch()))
+            {
+                SEQ_TRACE_WARN.print(
+                    "NEVER HAPPEN Warning from %s:\n"
+                    "t1 = %d us cannot be realized;\n"
+                    "deadtime_1 %d",
+                    ptModule,
+                    t1,
+                    deadtime_1);
+            }
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
+        std::cout << "HEHE31: " << std::endl;
+        deadtime_2
+            = t2 - ((1 - 0.5) * m_rf_5pG2.getDuration() + 0.5 * m_rf_5pG3.getDuration() + m_5pGsp_2.getTotalTime());
+        std::cout << "deadtime_2: " << deadtime_2 << std::endl;
+        if (deadtime_2 < 0)
+        {
+            if (!(rSeqLim.isContextPrepForBinarySearch()))
+            {
+                SEQ_TRACE_WARN.print(
+                    "NEVER HAPPEN Warning from %s:\n"
+                    "t2 = %d us cannot be realized;\n"
+                    "deadtime_2 %d",
+                    ptModule,
+                    t2,
+                    deadtime_2);
+            }
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
+        std::cout << "HEHE31111: " << std::endl;
+        deadtime_3
+            = t3 - ((1 - 0.5) * m_rf_5pG3.getDuration() + 0.5 * m_rf_5pG4.getDuration() + m_5pGsp_3.getTotalTime());
+        std::cout << "deadtime_3: " << deadtime_3 << std::endl;
+        if (deadtime_3 < 0)
+        {
+            if (!(rSeqLim.isContextPrepForBinarySearch()))
+            {
+                SEQ_TRACE_WARN.print(
+                    "NEVER HAPPEN Warning from %s:\n"
+                    "t3 = %d us cannot be realized;\n"
+                    "deadtime_3 %d",
+                    ptModule,
+                    t3,
+                    deadtime_3);
+            }
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
+        std::cout << "HEHE31111: " << std::endl;
+        deadtime_4
+            = t4 - ((1 - 0.5) * m_rf_5pG4.getDuration() + 0.5 * m_rf_5pG5.getDuration() + m_5pGsp_4.getTotalTime());
+        std::cout << "deadtime_4: " << deadtime_4 << std::endl;
+        if (deadtime_4 < 0)
+        {
+            if (!(rSeqLim.isContextPrepForBinarySearch()))
+            {
+                SEQ_TRACE_WARN.print(
+                    "NEVER HAPPEN Warning from %s:\n"
+                    "t4 = %d us cannot be realized;\n"
+                    "deadtime_4 %d",
+                    ptModule,
+                    t4,
+                    deadtime_4);
+            }
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
 
-        m_fastsp_dur_4 = fast_t4 - (.5 * (m_rf_fast4.getDuration() + m_rf_fast5.getDuration() ) + m_fastSpRamp);
-        m_fastsp_dur_4 = (m_fastsp_dur_4/GRAD_RASTER_TIME)*GRAD_RASTER_TIME;
-        m_fastsp_4amp = 1000. * FASTgradmoment_4 / (double) m_fastsp_dur_4;
+        // deadtime_5 = t5 - ((1-asym_factor)*m_vap_asym5.getDuration() + 0.5*m_rf_exc->getDuration() +
+        // m_vaporsp_5.getTotalTime() -  m_rf_exc->getDuration());
+        deadtime_5 = t5
+                     - ((1 - 0.5) * m_rf_5pG5.getDuration() + m_5pGsp_5.getTotalTime()
+                        + 0.5 * m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration()));
+        std::cout << "deadtime_5: " << deadtime_5 << std::endl;
+        if (deadtime_5 < 0)
+        {
+            if (!(rSeqLim.isContextPrepForBinarySearch()))
+            {
+                SEQ_TRACE_WARN.print(
+                    "NEVER HAPPEN Warning from %s:\n"
+                    "t5 = %d us cannot be realized;\n"
+                    "deadtime_5 %d",
+                    ptModule,
+                    t5,
+                    deadtime_5);
+            }
+            return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
+        }
 
-        m_fastsp_dur_5 = fast_t5 - (.5 * (m_rf_fast5.getDuration() + m_rf_fast5.getDuration() ) + m_fastSpRamp);
-        m_fastsp_dur_5 = (m_fastsp_dur_5/GRAD_RASTER_TIME)*GRAD_RASTER_TIME;
-        m_fastsp_5amp = 1000. * FASTgradmoment_5 / (double) m_fastsp_dur_5;
-
-        if( m_rf_exc->getDuration() > m_rf_fast5.getDuration() )
+        if( m_rf_exc->getDuration() > m_rf_5pG5.getDuration() )
             { // in the unlikeley case that the excit. pulse is longer than the wat. sup. pulse
                     // starting with VA15A and variable duration suppression pulses, this NEVER HAPPEN case is not any more supported
                 // #ifdef _DVP_DEBUG
                 SEQ_TRACE_DEBUG.print("\nfSEQPrep(): the excitation pulse (dur. %d us) must NOT be longer than the "
                         "\npreceeding water suppr. pulse VAPOR(dur. %d us).\n",
-                        m_rf_exc->getDuration(), m_rf_fast5.getDuration() );
+                        m_rf_exc->getDuration(), m_rf_5pG5.getDuration() );
 
                 // #endif
                 return MRI_SEQ_SEQU_SEQ_NOT_PREPARED;
@@ -1905,8 +2492,8 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         else
             { // the usual case that the excit. pulse is shorter than the wat. sup. pulse
                     // ... use the same spoil duration l as before, but compute m_lexcit_delay
-                    m_lexcit_delay = (long)(.5 + fast_t5 - (m_fastsp_dur_5 + .5*(m_rf_fast5.getDuration() + m_rf_exc->getDuration()) +
-                            (m_grad_exc->getDuration() - m_rf_exc->getDuration()) ));
+                    m_lexcit_delay = (long)(.5 + t5 - (m_5pGsp_5.getTotalTime() + (1-0.5)*m_rf_5pG5.getDuration() + 0.5*m_rf_exc->getDuration() +
+                        (m_grad_exc->getDuration() - m_rf_exc->getDuration()) ));
                     if( m_lexcit_delay < 0 )
                             m_lexcit_delay = 0;
                     m_lexcit_delay = (m_lexcit_delay/GRAD_RASTER_TIME)*GRAD_RASTER_TIME;
@@ -1955,6 +2542,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
     if (WStechnique == 8){
         m_lSBBDurationPerRequest_us = 2 * tau + tau3 + 0.5 * m_rf_ws1.getDuration() - (0.5 * m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration())); // rounding up a bit
         std::cout<<"h2osup_dur_WETcf: "<<m_lSBBDurationPerRequest_us<<std::endl;
+        setSBBDurationPerRequest(m_lSBBDurationPerRequest_us);
     }
     else if(WStechnique == 1)
     {
@@ -1964,20 +2552,23 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
             = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8 + .5 * m_rf_vapor1.getDuration()
               - (0.5 * m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration()));
         SEQ_TRACE_WARN.print("sbbduration = %ld", m_lSBBDurationPerRequest_us);
+        setSBBDurationPerRequest(m_lSBBDurationPerRequest_us);
         std::cout<<"h2osup_dur_vapor: "<<m_lSBBDurationPerRequest_us<<std::endl;
         std::cout<<"UGHHH VAPOR PUHLEASEEE5"<<std::endl;
     }
     else if(WStechnique == 2)
     {// CF fast
         m_lSBBDurationPerRequest_us
-            = fast_t1_3 + fast_t4 + fast_t5 + 0.5 * m_rf_fast1.getDuration()
+            = t1 + t2 + t3 + t4 + t5 + 0.5 * m_rf_5pG1.getDuration()
               - (0.5 * m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration()));
-        std::cout<<"h2osup_dur_fast: "<<m_lSBBDurationPerRequest_us<<std::endl;
+        setSBBDurationPerRequest(m_lSBBDurationPerRequest_us);
+        std::cout << "h2osup_dur_vapor asym 5pG: " << m_lSBBDurationPerRequest_us << std::endl;
     }
     else if(WStechnique == 7)
     { // CF HGWS
         SEQ_TRACE_WARN.print("HG_9");
         m_lSBBDurationPerRequest_us = HG_t1 + HG_t2 + HG_t3 + HG_t4 + HG_t5 + asym_factor * m_HG1.getDuration() - ( 0.5 * m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration()));
+        setSBBDurationPerRequest(m_lSBBDurationPerRequest_us);
         std::cout<<"h2osup_dur_HGWS: "<<m_lSBBDurationPerRequest_us<<std::endl;
     }
     else if(WStechnique == 3 || WStechnique == 4 || WStechnique == 6)
@@ -1985,6 +2576,7 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
         m_lSBBDurationPerRequest_us = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8 + asym_factor*m_vap_asym1.getDuration() - (0.5*m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration()));
         // m_lSBBDurationPerRequest_us
            // = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8 + m_vap_asym1.getDuration();
+        setSBBDurationPerRequest(m_lSBBDurationPerRequest_us);
         SEQ_TRACE_WARN.print("sbbduration = %ld", m_lSBBDurationPerRequest_us);
         std::cout<<"h2osup_dur_vapor asym: "<<m_lSBBDurationPerRequest_us<<std::endl;
         std::cout<<"UGHHH VAPOR PUHLEASEEE5"<<std::endl;
@@ -1992,11 +2584,24 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
     else if(WStechnique == 9){
         // m_lSBBDurationPerRequest_us = t1 + t2 + t3 + t4 + t5 + asym_factor*m_vap_asym1.getDuration() - (0.5*m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration()));
         m_lSBBDurationPerRequest_us = t1 + t2 + t3 + t4 + t5 + asym_factor * m_vap_asym1.getDuration() - (0.5 * m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration()));
+        setSBBDurationPerRequest(m_lSBBDurationPerRequest_us);
         std::cout<<"h2osup_dur_vapor asym 5pulses: "<<m_lSBBDurationPerRequest_us <<std::endl;
+    }
+
+    else if (WStechnique == 10)
+    {
+        // m_lSBBDurationPerRequest_us = t1 + t2 + t3 + t4 + t5 + asym_factor*m_vap_asym1.getDuration() -
+        // (0.5*m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration()));
+        m_lSBBDurationPerRequest_us
+            = t1 + t2 + t3 + t4 + t5 + t6 + asym_factor * m_vap_asym1.getDuration()
+              - (0.5 * m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration()));
+        setSBBDurationPerRequest(m_lSBBDurationPerRequest_us);
+        std::cout << "h2osup_dur_vapor asym 6pulses: " << m_lSBBDurationPerRequest_us << std::endl;
     }
     else if(WStechnique == 5){
         m_lSBBDurationPerRequest_us
             = t1 + t2 + t3 + t4 + asym_factor * m_vap_asym1.getDuration() - (0.5 * m_rf_exc->getDuration() + (m_grad_exc->getDuration() - m_rf_exc->getDuration()));
+        setSBBDurationPerRequest(m_lSBBDurationPerRequest_us);
         std::cout<<"h2osup_dur_vapor asym 4pulses 50ms: "<<m_lSBBDurationPerRequest_us<<std::endl;
     }
     else {
@@ -2065,19 +2670,19 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::run (MrProt &rMrProt, SeqLi
 				 std::cout<<"UGHHH VAPOR PUHLEASEEE4"<<std::endl;
 			}
 			else if(WStechnique == 2)
-            {// FAST
-				 fRTEI(lT+= 0, &m_ph_s_fast1, &m_rf_fast1,/*A*/ 0,0,0,0,0);
-				 fRTEI( lT+= m_rf_fast1.getDuration(),  &m_ph_n_fast1, 0, /*A*/ 0, 0,&m_fastsp_1,0,0);
-				 fRTEI(lT+= (m_fastsp_1.getDuration()+m_fastsp_1.getRampDownTime()), &m_ph_s_fast2, &m_rf_fast2,/*A*/ 0,0,0,0,0);
-				 fRTEI( lT+= m_rf_fast2.getDuration(),  &m_ph_n_fast2, 0, /*A*/ 0, &m_fastsp_2, 0,0,0);
-				 fRTEI(lT+= (m_fastsp_2.getDuration()+m_fastsp_2.getRampDownTime()), &m_ph_s_fast3, &m_rf_fast3,/*A*/ 0,0,0,0,0);
-				 fRTEI( lT+= m_rf_fast3.getDuration(),  &m_ph_n_vapor3, 0, /*A*/ 0, 0, 0,&m_fastsp_3,0);
-				 fRTEI(lT+= (m_fastsp_3.getDuration()+m_fastsp_3.getRampDownTime()), &m_ph_s_fast4, &m_rf_fast4,/*A*/ 0,0,0,0,0);
-				 fRTEI( lT+= m_rf_fast4.getDuration(),  &m_ph_n_fast4, 0, /*A*/ 0, 0, &m_fastsp_4,0,0);
-				 fRTEI(lT+= (m_fastsp_4.getDuration()+m_fastsp_4.getRampDownTime()), &m_ph_s_fast5, &m_rf_fast5,/*A*/ 0,0,0,0,0);
-				 fRTEI( lT+= m_rf_fast5.getDuration(),  &m_ph_n_fast5, 0, /*A*/ 0, 0, &m_fastsp_5,&m_fastsp_5,0);
-				 fRTEI(lT+= (m_lexcit_delay), 0, 0,/*A*/ 0,0,0,0,0);
-				 std::cout<<"UGHHH FAST PUHLEASEEE"<<std::endl;
+            {// 5pG
+                fRTEI(lT += 0, &m_ph_s_5pG1, &m_rf_5pG1, /*A*/ 0, 0, 0, 0, 0);
+                fRTEI(lT += m_rf_5pG1.getDuration(), &m_ph_n_5pG1, 0, /*A*/ 0, 0, &m_5pGsp_1, 0, 0);
+				 fRTEI(lT+= (m_5pGsp_1.getDuration()+m_5pGsp_1.getRampDownTime()+ deadtime_1), &m_ph_s_5pG2, &m_rf_5pG2,/*A*/ 0,0,0,0,0);
+                fRTEI(lT += m_rf_5pG2.getDuration(), &m_ph_n_5pG2, 0, /*A*/ 0, &m_5pGsp_2, 0, 0, 0);
+				 fRTEI(lT+= (m_5pGsp_2.getDuration()+m_5pGsp_2.getRampDownTime()+ deadtime_2), &m_ph_s_5pG3, &m_rf_5pG3,/*A*/ 0,0,0,0,0);
+                fRTEI(lT += m_rf_5pG3.getDuration(), &m_ph_n_5pG3, 0, /*A*/ 0, 0, 0, &m_5pGsp_3, 0);
+				 fRTEI(lT+= (m_5pGsp_3.getDuration()+m_5pGsp_3.getRampDownTime()+ deadtime_3), &m_ph_s_5pG4, &m_rf_5pG4,/*A*/ 0,0,0,0,0);
+                fRTEI(lT += m_rf_5pG4.getDuration(), &m_ph_n_5pG4, 0, /*A*/ 0, 0, &m_5pGsp_4, 0, 0);
+				 fRTEI(lT+= (m_5pGsp_4.getDuration()+m_5pGsp_4.getRampDownTime()+ deadtime_4), &m_ph_s_5pG5, &m_rf_5pG5,/*A*/ 0,0,0,0,0);
+                fRTEI(lT += m_rf_5pG5.getDuration(), &m_ph_n_5pG5, 0, /*A*/ 0, &m_5pGsp_5, 0, &m_5pGsp_5, 0);
+				 fRTEI(lT+= (m_5pGsp_5.getDuration()+m_5pGsp_5.getRampDownTime()+m_lexcit_delay), 0, 0,/*A*/ 0,0,0,0,0);
+				 std::cout<<"UGHHH 5pG PUHLEASEEE"<<std::endl;
 			}
 			else if(WStechnique == 7)
             { // HGWS
@@ -2126,6 +2731,23 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::run (MrProt &rMrProt, SeqLi
 				 fRTEI(lT+= (m_vaporsp_4.getDuration()+m_vaporsp_4.getRampDownTime()+ deadtime_4), &m_ph_s_asym5, &m_vap_asym5,/*A*/ 0,0,0,0,0);
 				 fRTEI( lT+= m_vap_asym5.getDuration(),  &m_ph_n_asym5, 0, /*A*/ 0, &m_vaporsp_5, 0,&m_vaporsp_5,0);
                  fRTEI(lT+= (m_vaporsp_5.getDuration()+m_vaporsp_5.getRampDownTime() + m_lexcit_delay), 0, 0,/*A*/ 0,0,0,0,0);
+                 std::cout << "m_lexcit_delay = " << m_lexcit_delay << std::endl;
+            }
+
+            else if(WStechnique == 10){
+                 fRTEI(lT+= 0, &m_ph_s_asym1, &m_vap_asym1,/*A*/ 0,0,0,0,0);
+				 fRTEI( lT+= m_vap_asym1.getDuration(),  &m_ph_n_asym1, 0, /*A*/ 0, 0,&m_vaporsp_1,0,0);
+				 fRTEI(lT+= (m_vaporsp_1.getDuration()+m_vaporsp_1.getRampDownTime()+ deadtime_1), &m_ph_s_asym2, &m_vap_asym2,/*A*/ 0,0,0,0,0);
+				 fRTEI( lT+= m_vap_asym2.getDuration(),  &m_ph_n_asym2, 0, /*A*/ 0, &m_vaporsp_2, 0,0,0);
+				 fRTEI(lT+= (m_vaporsp_2.getDuration()+m_vaporsp_2.getRampDownTime()+ deadtime_2), &m_ph_s_asym3, &m_vap_asym3,/*A*/ 0,0,0,0,0);
+				 fRTEI( lT+= m_vap_asym3.getDuration(),  &m_ph_n_asym3, 0, /*A*/ 0, 0, 0,&m_vaporsp_3,0);
+				 fRTEI(lT+= (m_vaporsp_3.getDuration()+m_vaporsp_3.getRampDownTime()+ deadtime_3), &m_ph_s_asym4, &m_vap_asym4,/*A*/ 0,0,0,0,0);
+				 fRTEI( lT+= m_vap_asym4.getDuration(),  &m_ph_n_asym4, 0, /*A*/ 0, 0, &m_vaporsp_4,0,0);
+				 fRTEI(lT+= (m_vaporsp_4.getDuration()+m_vaporsp_4.getRampDownTime()+ deadtime_4), &m_ph_s_asym5, &m_vap_asym5,/*A*/ 0,0,0,0,0);
+                 fRTEI(lT += m_vap_asym5.getDuration(), &m_ph_n_asym5, 0, /*A*/ 0, &m_vaporsp_5, 0, 0, 0);
+				 fRTEI(lT+= (m_vaporsp_5.getDuration()+m_vaporsp_5.getRampDownTime()+ deadtime_5), &m_ph_s_asym6, &m_vap_asym6,/*A*/ 0,0,0,0,0);
+                 fRTEI( lT+= m_vap_asym6.getDuration(),  &m_ph_n_asym6, 0, /*A*/ 0, &m_vaporsp_6, 0,&m_vaporsp_6,0);
+                 fRTEI(lT+= (m_vaporsp_6.getDuration()+m_vaporsp_6.getRampDownTime() + m_lexcit_delay), 0, 0,/*A*/ 0,0,0,0,0);
                  std::cout << "m_lexcit_delay = " << m_lexcit_delay << std::endl;
             }
             else if(WStechnique == 5){
@@ -2187,17 +2809,17 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::run (MrProt &rMrProt, SeqLi
 			}
 			else if(WStechnique == 2)
             {// CF FAST
-				 fRTEI(lT+= 0, &m_ph_s_fast1, 0,/*A*/ 0,0,0,0,0);
-				 fRTEI( lT+= m_rf_fast1.getDuration(),  &m_ph_n_fast1, 0, /*A*/ 0, 0,&m_fastsp_1,0,0);
-				 fRTEI(lT+= (m_fastsp_1.getDuration()+m_fastsp_1.getRampDownTime()), &m_ph_s_fast2, 0,/*A*/ 0,0,0,0,0);
-				 fRTEI( lT+= m_rf_fast2.getDuration(),  &m_ph_n_fast2, 0, /*A*/ 0, &m_fastsp_2, 0,0,0);
-				 fRTEI(lT+= (m_fastsp_2.getDuration()+m_fastsp_2.getRampDownTime()), &m_ph_s_fast3, 0,/*A*/ 0,0,0,0,0);
-				 fRTEI( lT+= m_rf_fast3.getDuration(),  &m_ph_n_fast3, 0, /*A*/ 0, 0, 0,&m_fastsp_3,0);
-				 fRTEI(lT+= (m_fastsp_3.getDuration()+m_fastsp_3.getRampDownTime()), &m_ph_s_fast4, 0,/*A*/ 0,0,0,0,0);
-				 fRTEI( lT+= m_rf_fast4.getDuration(),  &m_ph_n_fast4, 0, /*A*/ 0, 0, &m_fastsp_4,0,0);
-				 fRTEI(lT+= (m_fastsp_4.getDuration()+m_fastsp_4.getRampDownTime()), &m_ph_s_fast5, 0,/*A*/ 0,0,0,0,0);
-				 fRTEI( lT+= m_rf_fast5.getDuration(),  &m_ph_n_fast5, 0, /*A*/ 0, 0, &m_fastsp_5,&m_fastsp_5,0);
-				 fRTEI(lT+= (m_lexcit_delay), 0, 0,/*A*/ 0,0,0,0,0);
+                fRTEI(lT += 0, &m_ph_s_5pG1, 0, /*A*/ 0, 0, 0, 0, 0);
+                fRTEI(lT += m_rf_5pG1.getDuration(), &m_ph_n_5pG1, 0, /*A*/ 0, 0, &m_5pGsp_1, 0, 0);
+				 fRTEI(lT+= (m_5pGsp_1.getDuration()+m_5pGsp_1.getRampDownTime()+ deadtime_1), &m_ph_s_5pG2, 0,/*A*/ 0,0,0,0,0);
+                fRTEI(lT += m_rf_5pG2.getDuration(), &m_ph_n_5pG2, 0, /*A*/ 0, &m_5pGsp_2, 0, 0, 0);
+				 fRTEI(lT+= (m_5pGsp_2.getDuration()+m_5pGsp_2.getRampDownTime()+ deadtime_2), &m_ph_s_5pG3, 0,/*A*/ 0,0,0,0,0);
+                fRTEI(lT += m_rf_5pG3.getDuration(), &m_ph_n_5pG3, 0, /*A*/ 0, 0, 0, &m_5pGsp_3, 0);
+				 fRTEI(lT+= (m_5pGsp_3.getDuration()+m_5pGsp_3.getRampDownTime()+ deadtime_3), &m_ph_s_5pG4, 0,/*A*/ 0,0,0,0,0);
+                fRTEI(lT += m_rf_5pG4.getDuration(), &m_ph_n_5pG4, 0, /*A*/ 0, 0, &m_5pGsp_4, 0, 0);
+				 fRTEI(lT+= (m_5pGsp_4.getDuration()+m_5pGsp_4.getRampDownTime()+ deadtime_4), &m_ph_s_5pG5, 0,/*A*/ 0,0,0,0,0);
+                fRTEI(lT += m_rf_5pG5.getDuration(), &m_ph_n_5pG5, 0, /*A*/ 0, &m_5pGsp_5,0, &m_5pGsp_5, 0);
+				 fRTEI(lT+= (m_5pGsp_5.getDuration()+m_5pGsp_5.getRampDownTime()+m_lexcit_delay), 0, 0,/*A*/ 0,0,0,0,0);
 				 std::cout<<"UGHHH FAST PUHLEASEEE"<<std::endl;
 			}
 			else if(WStechnique == 7)
@@ -2248,6 +2870,22 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::run (MrProt &rMrProt, SeqLi
 				 fRTEI(lT+= (m_vaporsp_4.getDuration()+m_vaporsp_4.getRampDownTime()+ deadtime_4), &m_ph_s_asym5, 0,/*A*/ 0,0,0,0,0);
 				 fRTEI( lT+= m_vap_asym5.getDuration(),  &m_ph_n_asym5, 0, /*A*/ 0, &m_vaporsp_5, 0,&m_vaporsp_5,0);
                  fRTEI(lT+= (m_vaporsp_5.getDuration()+m_vaporsp_5.getRampDownTime() + m_lexcit_delay), 0, 0,/*A*/ 0,0,0,0,0);
+            }
+            
+            else if(WStechnique == 10){
+                 fRTEI(lT+= 0, &m_ph_s_asym1, 0,/*A*/ 0,0,0,0,0);
+				 fRTEI( lT+= m_vap_asym1.getDuration(),  &m_ph_n_asym1, 0, /*A*/ 0, 0,&m_vaporsp_1,0,0);
+				 fRTEI(lT+= (m_vaporsp_1.getDuration()+m_vaporsp_1.getRampDownTime()+ deadtime_1), &m_ph_s_asym2, 0,/*A*/ 0,0,0,0,0);
+				 fRTEI( lT+= m_vap_asym2.getDuration(),  &m_ph_n_asym2, 0, /*A*/ 0, &m_vaporsp_2, 0,0,0);
+				 fRTEI(lT+= (m_vaporsp_2.getDuration()+m_vaporsp_2.getRampDownTime()+ deadtime_2), &m_ph_s_asym3, 0,/*A*/ 0,0,0,0,0);
+				 fRTEI( lT+= m_vap_asym3.getDuration(),  &m_ph_n_asym3, 0, /*A*/ 0, 0, 0,&m_vaporsp_3,0);
+				 fRTEI(lT+= (m_vaporsp_3.getDuration()+m_vaporsp_3.getRampDownTime()+ deadtime_3), &m_ph_s_asym4, 0,/*A*/ 0,0,0,0,0);
+				 fRTEI( lT+= m_vap_asym4.getDuration(),  &m_ph_n_asym4, 0, /*A*/ 0, 0, &m_vaporsp_4,0,0);
+				 fRTEI(lT+= (m_vaporsp_4.getDuration()+m_vaporsp_4.getRampDownTime()+ deadtime_4), &m_ph_s_asym5, 0,/*A*/ 0,0,0,0,0);
+                 fRTEI(lT += m_vap_asym5.getDuration(), &m_ph_n_asym5, 0, /*A*/ 0, &m_vaporsp_5, 0, 0, 0);
+				 fRTEI(lT+= (m_vaporsp_5.getDuration()+m_vaporsp_5.getRampDownTime()+ deadtime_5), &m_ph_s_asym6, 0,/*A*/ 0,0,0,0,0);
+                 fRTEI( lT+= m_vap_asym6.getDuration(),  &m_ph_n_asym6, 0, /*A*/ 0, &m_vaporsp_6, 0,&m_vaporsp_6,0);
+                 fRTEI(lT+= (m_vaporsp_6.getDuration()+m_vaporsp_6.getRampDownTime() + m_lexcit_delay), 0, 0,/*A*/ 0,0,0,0,0);
             }
             else if(WStechnique == 5){
 
