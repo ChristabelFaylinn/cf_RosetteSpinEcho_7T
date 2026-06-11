@@ -159,7 +159,7 @@ NLSStatus Csi_fid::initialize(SeqLim& rSeqLim)
     rSeqLim.setMinSliceResolution(0.5); // why?
 
     // Bandwidth used for data acquisition
-    rSeqLim.setBandWidth(0, 4200, 4200, 100, 1600);
+    rSeqLim.setBandWidth(0, 4200, 4200, 100, 4200);
 
     // Echo Time
     rSeqLim.setTE(0, 100, 300000, 100, 15000);
@@ -263,9 +263,9 @@ NLSStatus Csi_fid::initialize(SeqLim& rSeqLim)
     m_WIPParamTool.addDefaultOption(WIP_WatAdj, sOption13, 1);
 
     // m_WIPParamTool.createBoolArrayParameter(WIP_ws_option, 19, 5, rSeqLim, vWStechnique, bDefBoolWStechnique);
-    m_WIPParamTool.addOption(WIP_ws_option, sOption1, 0); // WETSBB, 0 
+    m_WIPParamTool.addDefaultOption(WIP_ws_option, sOption1, 0); // WETSBB, 0 
     m_WIPParamTool.addOption(WIP_ws_option, sOption2, 1); // VAPOR, 1
-    m_WIPParamTool.addDefaultOption(WIP_ws_option, sOption3, 2); // 5p Gauss, 2
+    m_WIPParamTool.addOption(WIP_ws_option, sOption3, 2); // 5p Gauss, 2
     m_WIPParamTool.addOption(WIP_ws_option, sOption4, 3); // VAPOR asym, 3
     m_WIPParamTool.addOption(WIP_ws_option, sOption5, 4); // jn_asym, 4
     m_WIPParamTool.addOption(WIP_ws_option, sOption6, 5); // jn_asym_50, 5 (4 pulses)
@@ -618,6 +618,8 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
     m_rf_ref.setThickness(rMrProt.getsSpecPara().getsVoI().getdThickness()); // should i change this CF 
     m_rf_ref.setDuration(defaultDuration);
     m_rf_ref.setSamples(450);
+
+    rfInfoMainNucPerScan += 2* m_rf_ref.getRFInfo();
 
     if (!(m_rf_ref.prepExternal(rMrProt, rSeqExpo)))
             return m_rf_ref.getNLSStatus();
@@ -1576,7 +1578,7 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
 	 /////////////////////////////////////////////////////////////////////////
 	 //Calculation of new KernelRequestsPerMeasurement
 	 ////////////////////////////////////////////////////////////////////////
-	 lKernelRequestsPerMeasurement += static_cast<long>(Nsh*(rMrProt.averages()));
+	 lKernelRequestsPerMeasurement += static_cast<long>(Nsh*(rMrProt.averages())*n_ti);
    
     
      delay_3 = ceil((2 * M_PI) / (n_ti * w * 2) * 1000000);
@@ -1593,7 +1595,11 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
      }
 
     // Calculate the total measurement time, including measurement repeats
-    const double dMeasureTimeUsec = static_cast<double>(lKernelRequestsPerMeasurement) * rMrProt.tr()[0];
+     /*const double dMeasureTimeUsec = ( static_cast<double>(lKernelRequestsPerMeasurement / n_ti) * rMrProt.tr()[0] )
+                                     + (static_cast<double>(lKernelRequestsPerMeasurement / n_ti) * rMrProt.tr()[0] + dummy_delay_3);*/
+
+     const double dMeasureTimeUsec
+         = static_cast<double>(lKernelRequestsPerMeasurement * rMrProt.tr()[0] );
 
     double dTotalMeasureTimeMsec = 0.0;
     lStatus = fSBBMeasRepetDelaysPrep(rMrProt, rSeqLim, rSeqExpo, dMeasureTimeUsec / 1000.0, &dTotalMeasureTimeMsec);
@@ -2367,13 +2373,13 @@ NLS_STATUS Csi_fid::runKernel(
     m_ph_n_ref.setFrequencyProportionalToGradient(SEQ::AXIS_SLICE, 0.0);                  /*! EGA-05 !*/
     m_ph_n_ref.resetFrequencyProportionalToGradient();                                    /*! EGA-05 !*/ 
     fRTEI(lT += m_gradRampDuration_sl, &m_ph_s_ref, &m_rf_ref, 0, /*A*/ 0, 0, 0, 0);
-    fRTEI(lT += m_rf_ref.getDuration(), &m_ph_n_ref, 0, /*A*/ 0, &m_sp1_ph, &m_sp1_ro, &m_sp1_sl, 0);
+    fRTEI(lT += m_rf_ref.getDuration(), &m_ph_n_ref, 0, /*A*/ 0, &m_sp1_ph, &m_sp1_ro, &m_sp1_ro, 0);
 
     // 2nd GOIA refocussing pulse
     if (m_ISISalternator == 0)
     {
-        m_1TrueTE1 = delay_4;
-        m_lTrueTE2 = delay_5;
+        m_1TrueTE1 = delay_1;
+        m_lTrueTE2 = delay_2;
     }
     else
     {
@@ -2381,7 +2387,7 @@ NLS_STATUS Csi_fid::runKernel(
         m_lTrueTE2 = delay_2;
     }
     
-    fRTEI(lT += m_sp1_sl.getTotalTime() + m_1TrueTE1, 0, 0, /*A*/ 0, &m_sp1_ph, &m_sp1_ro, &m_sp1_sl, 0);
+    fRTEI(lT += m_sp1_sl.getTotalTime() + m_1TrueTE1, 0, 0, /*A*/ 0, &m_sp1_ph, &m_sp1_ro, &m_sp1_ro, 0);
     fRTEI(lT += m_sp1_sl.getDuration(), 0, 0, /*A*/ 0, 0, 0, &m_grad_ref, 0);
     m_ph_s_ref.setFrequencyProportionalToGradient(SEQ::AXIS_SLICE, m_dFreqPropFactor_sl); /*! EGA-05 !*/
     m_ph_n_ref.setFrequencyProportionalToGradient(SEQ::AXIS_SLICE, 0.0);                  /*! EGA-05 !*/
@@ -2487,8 +2493,17 @@ NLS_STATUS Csi_fid::runKernel(
     //     0);
     fRTEI(0, &m_ph_n_adc,0,0, /*&m_finsp_ph*/ &m_RosGy_rampdown, /*&m_finsp_ro*/  &m_RosGx_rampdown, &m_finsp_sl, 0 );
     long last_block_dur=(m_finsp_sl.getDuration() + m_finsp_sl.getRampDownTime()+m_RosGy_rampdown.getDuration());
-	lT+=last_block_dur;
-
+    if (m_ISISalternator == 0)
+    {
+        //lT += last_block_dur - dummy_delay_3;
+        // last_block_dur -= dummy_delay_3;
+        lT += last_block_dur - dummy_delay_3;
+    }
+    else
+    {
+        lT += last_block_dur;
+    }
+	
     // TR fill
     // fRTEI(
     //     fSDSRoundUpGRT(m_adc1.getStartTime() + m_adc1.getRoundedDuration()) + m_finsp_ph.getTotalTime() + m_lTRFill,
