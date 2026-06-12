@@ -2617,8 +2617,8 @@ bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::prep (MrProt &rMrProt, SeqL
 
 bool /*SEQ_NAMESPACE::*/SeqBuildBlockWatSupVAPOR_CF::run (MrProt &rMrProt, SeqLim & rSeqLim, MrProtocolData::SeqExpo &rSeqExpo, sSLICE_POS* pSLC) // add wip param
 {
-    // if (!isPrepared())
-    // return true;
+    if (!isPrepared())
+    return true;
     // if (!SeqBuildBlockWatSup::run(rMrProt, rSeqLim, rSeqExpo, pSLC))
     // return false;
 
