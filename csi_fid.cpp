@@ -1742,6 +1742,7 @@ NLSStatus Csi_fid::prepare(MrProt& rMrProt, SeqLim& rSeqLim, SeqExpo& rSeqExpo)
         lSBBDuration = m_sWaterSat_VAPOR.getDurationPerRequest();
         rfInfoMainNucPerScan += m_sWaterSat_VAPOR.getRFInfoPerRequest();
         SEQ_TRACE_WARN.print("rfInfo from SBB watsup %ld", m_sWaterSat_VAPOR.getRFInfoPerRequest());
+        SEQ_TRACE_WARN.print("sbbdur from SBB watsup %ld", lSBBDuration);
         
 
     }
